@@ -1,0 +1,3 @@
+- cmdserver
+  - spawn cmdprocs and send them sockets to listen to 
+    messages on, and register their names with the sockets

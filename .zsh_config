@@ -1,0 +1,2 @@
+pythonpath=($PWD/src/python $pythonpath)
+export PYTHONPATH

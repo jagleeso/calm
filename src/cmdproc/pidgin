@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+import cmdproc
+
+# https://developer.pidgin.im/wiki/DbusHowto
+# provide asynchronous 
+import dbus
+import gobject
+import argparse
+from dbus.mainloop.glib import DBusGMainLoop
+import logging
+
+from multiprocessing import Process, Lock, Array
+
+import logconfig
+logger = logging.getLogger(__name__)
+
+# Keeping track of pidgen messenger's state based on received messages.
+
+# Mutex over all messenger state.
+# _state_lock = Lock()
+# Who last sent us a message (used as a received for a REPLY command)?
+# _last_sender = None
+_last_sender = Array('c', 1024, lock=True)
+
+class PidginCmdProc(cmdproc.CmdProc):
+    config = {
+        'program': 'pidgin',
+        'commands': [ 
+            [['cmd', 'REPLY'], ['arg', "name-or-search"]],
+        ],
+    }
+    def __init__(self, cmdserver_server, cmdserver_port):
+        cmd_to_handler = {
+            "REPLY": self.cmd_reply,
+        }
+        super(PidginCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
+
+    def start(self):
+        logger.info("Starting Pidgin command processor...")
+        self.connect()
+        setup_dbus_handlers()
+        self.receive_and_dispatch_loop()
+
+    def cmd_reply(self, cmd):
+        # global _last_sender
+        last_sender = None
+        # _state_lock.acquire()
+        last_sender = _last_sender.value
+        # _state_lock.release()
+        logger.info("Got REPLY command: %s.  Last sender was %s", cmd, last_sender)
+
+def receive_msg(account, sender, message, conversation, flags):
+    global _last_sender
+    logger.info("DBUS: %s said: \"%s\", old _last_sender == %s", sender, message, _last_sender.value)
+    # _state_lock.acquire()
+    _last_sender.value = sender
+    # _state_lock.release()
+
+def setup_dbus_handlers():
+    logger.info("Setting up dbus handlers...")
+    def setup():
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        bus = dbus.SessionBus()
+
+        bus.add_signal_receiver(receive_msg,
+                                dbus_interface="im.pidgin.purple.PurpleInterface",
+                                signal_name="ReceivedImMsg")
+
+        loop = gobject.MainLoop()
+        logger.info("Run the loop....")
+        loop.run()
+        logger.info("Running")
+    dbus_thread = Process(target=setup)
+    logger.info("Start DBUS thread....")
+    dbus_thread.start()
+    logger.info("Started.")
+
+def main():
+    parser = argparse.ArgumentParser(description="A pidgin command processor.")
+    args, processor = cmdproc.cmdproc_main(PidginCmdProc, parser)
+    processor.start()
+        
+if __name__ == '__main__':
+    main()
