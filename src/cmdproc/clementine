@@ -1,6 +1,84 @@
 #!/usr/bin/env python
+import cmdproc
+
+# https://developer.pidgin.im/wiki/DbusHowto
+# provide asynchronous 
+import dbus
+import gobject
+import argparse
+from dbus.mainloop.glib import DBusGMainLoop
+import logging
+
+from multiprocessing import Process, Lock, Array
+
+import logconfig
+logger = logging.getLogger(__name__)
+
+# Keeping track of pidgen messenger's state based on received messages.
+
+# Mutex over all messenger state.
+# _state_lock = Lock()
+# Who last sent us a message (used as a received for a REPLY command)?
+# _last_sender = None
+_last_sender = Array('c', 1024, lock=True)
+
+class ClementineCmdProc(cmdproc.CmdProc):
+    config = {
+        'program': 'clementine',
+        'commands': [ 
+            [['cmd', 'PLAY']],
+            [['cmd', 'PAUSE']],
+            [['cmd', 'VOLUME'], ['arg', int]],
+        ],
+    }
+    def __init__(self, cmdserver_server, cmdserver_port):
+        cmd_to_handler = {
+            "REPLY": self.cmd_reply,
+        }
+        super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
+        self.bus = dbus.SessionBus()
+        self.player = bus.get_object('org.mpris.clementine', '/Player')
+
+    def start(self):
+        logger.info("Starting Clementine command processor...")
+        self.connect()
+        setup_dbus_handlers()
+        self.receive_and_dispatch_loop()
+
+    # 'org.freedesktop.MediaPlayer'
+    def dbus_cmd(self, interface, command):
+        iface = dbus.Interface(player, dbus_interface=interface)
+        return command(iface)
+
+    def cmd_play(self, cmd):
+        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Play())
+
+    def cmd_pause(self, cmd):
+        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Next())
+
+    def cmd_volume(self, cmd, level):
+        int_level = int(level)
+        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.VolumeSet(int_level))
+
+    def cmd_reply(self, cmd):
+        # global _last_sender
+        last_sender = None
+        # _state_lock.acquire()
+        last_sender = _last_sender.value
+        # _state_lock.release()
+        logger.info("Got REPLY command: %s.  Last sender was %s", cmd, last_sender)
+
+def receive_msg(account, sender, message, conversation, flags):
+    global _last_sender
+    logger.info("DBUS: %s said: \"%s\", old _last_sender == %s", sender, message, _last_sender.value)
+    # _state_lock.acquire()
+    _last_sender.value = sender
+    # _state_lock.release()
 
 def main():
-    
+    parser = argparse.ArgumentParser(description="A clementine command processor.")
+    args, processor = cmdproc.cmdproc_main(ClementineCmdProc, parser)
+    processor.start()
+        
 if __name__ == '__main__':
     main()

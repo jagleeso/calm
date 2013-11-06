@@ -60,6 +60,46 @@ class CmdServer(object):
             self._program_to_pid[config['program']] = pid
         setup_signal_handler(self._program_to_pid.values())
 
+def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
+    """
+    Takes a DFA that transitions on words based on whether they are command delimiters.
+    Based on the transitions, returns a command array of the form:
+
+    [['cmd', 'SEND'], ['cmd', 'clementine'], ['cmd', 'VOLUME'], ['arg', 55]]
+
+    serverproc_cmds looks like:
+    [ 
+        [['cmd', 'SEND'], ['arg', str], ['cmdproc', 1]], # 1 => use arg at index 1 as cmdproc identifier 
+    ],
+
+    cmdproc_cmds looks like:
+    [
+        'clementine': [ 
+            [['cmd', 'PLAY']],
+            [['cmd', 'PAUSE']],
+            [['cmd', 'VOLUME'], ['arg', int]],
+        ],
+        ...
+    ]
+
+    cmd_delimeters looks like:
+    ['SEND', 'clementine', 'VOLUME', 'PLAY', 'PAUSE', 'VOLUME']
+
+    """
+    # Store the results of each transition
+    cmd = []
+    def arg():
+    def cmdproc():
+    def cmd():
+    state = 'cmdserver_or_current_cmdproc'
+
+def build_cmd_dfa():
+    """
+    Build a DFA for parse_cmd using the serverproc commands and cmdproc commands.
+
+    """
+    pass
+
 def cmdserver_main(cmdserver_class, parser=None):
     if parser is None:
         parser = argparse.ArgumentParser(description="A command server.")
