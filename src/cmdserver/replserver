@@ -19,7 +19,17 @@ class ReplServer(cmdserver.CmdServer):
             self.dispatch_cmd_to_cmdproc(cmd)
 
     def dispatch_cmd_to_cmdproc(self, cmd_strs):
-        if cmd_strs[0] == 'SEND':
+        if len(cmd_strs) < 1:
+            logger.error("Command string too short")
+        if cmd_strs[0] == 'RECORD':
+            name = cmd_strs[1]
+            self.record_macro(name)
+        elif cmd_strs[0] == 'DONE':
+            self.end_macro()
+        elif cmd_strs[0] == 'REPLAY':
+            name = cmd_strs[1]
+            self.replay_macro(name)
+        elif cmd_strs[0] == 'SEND':
             program = cmd_strs[1]
             cmd_name = cmd_strs[2]
             # cmd_args = " ".join(cmd_strs[3:])

@@ -60,6 +60,41 @@ class CmdServer(object):
             self._program_to_pid[config['program']] = pid
         setup_signal_handler(self._program_to_pid.values())
 
+    def record_macro(self, name):
+        """
+        Get the command processors ready to record a macro (on return, we're ready).
+        """
+        for socket in self._program_to_socket.values():
+            send_cmd(socket, [['cmd', 'RECORD'], ['arg', name]])
+        for program in self._program_to_socket.keys():
+            # Wait for all the command processors to be ready to record a macro.
+            socket = self._program_to_socket[program]
+            ready_msg = recv(socket)
+            if ready_msg != 'Ready to record':
+                logger.error("The command processor for %s failed to return 'Ready to record', and instead returned '%s'", program, ready_msg)
+                for s in self._program_to_socket.values():
+                    # Tell processes to stop recording the macro, since some of them might 
+                    # be recording.
+                    send_cmd(socket, [['cmd', 'DONE']])
+                return False
+        return True
+
+    def replay_macro(self, name):
+        """
+        Tell the command processors to replay macro.
+        """
+        for s in self._program_to_socket.values():
+            # Tell processes to stop recording the macro, since some of them might 
+            # be recording.
+            send_cmd(s, [['cmd', 'REPLAY'], ['arg', name]])
+
+    def end_macro(self):
+        """
+        Tell the command processors to stop recording the macro.
+        """
+        for socket in self._program_to_socket.values():
+            send_cmd(socket, [['cmd', 'DONE']])
+
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     """
     Takes a DFA that transitions on words based on whether they are command delimiters.

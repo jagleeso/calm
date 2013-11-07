@@ -37,8 +37,20 @@ class WindowCmdProc(cmdproc.CmdProc):
         self.connect()
         self.receive_and_dispatch_loop()
 
-    def cmd_left(self, args):
-        window = get_current_window()
+    def macro_check(self, cmd_func, window):
+        ws = windows()
+        if not any(w['hex_code'] == window for w in ws):
+            # The window may no longer exist if this command is being replayed with a macro
+            return False
+        logger.info("is_recording? %s", self.is_recording())
+        if self.is_recording():
+            self.put_cmd(lambda: cmd_func(args, window=window))
+
+    def cmd_left(self, args, window=None):
+        if window is None:
+            window = get_current_window()
+        if not self.macro_check(self.cmd_left, window):
+            return
         x = 0
         y = 0
         width = self.screen_width // 2
@@ -46,8 +58,11 @@ class WindowCmdProc(cmdproc.CmdProc):
         move_window(window, x, y, width, height)
         focus_window(window)
 
-    def cmd_right(self, args):
-        window = get_current_window()
+    def cmd_right(self, args, window=None):
+        if window is None:
+            window = get_current_window()
+        if not self.macro_check(self.cmd_right, window):
+            return
         x = self.screen_width // 2
         y = 0
         width = self.screen_width // 2
@@ -55,8 +70,11 @@ class WindowCmdProc(cmdproc.CmdProc):
         move_window(window, x, y, width, height)
         focus_window(window)
 
-    def cmd_maximize(self, args):
-        window = get_current_window()
+    def cmd_maximize(self, args, window=None):
+        if window is None:
+            window = get_current_window()
+        if not self.macro_check(self.cmd_maximize, window):
+            return
         x = 0
         y = 0
         width = self.screen_width
