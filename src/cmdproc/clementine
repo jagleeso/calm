@@ -28,7 +28,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
         'commands': [ 
             [['cmd', 'PLAY']],
             [['cmd', 'PAUSE']],
-            [['cmd', 'VOLUME'], ['arg', int]],
+            [['cmd', 'VOLUME'], ['arg', 'int']],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
@@ -42,7 +42,6 @@ class ClementineCmdProc(cmdproc.CmdProc):
     def start(self):
         logger.info("Starting Clementine command processor...")
         self.connect()
-        setup_dbus_handlers()
         self.receive_and_dispatch_loop()
 
     # 'org.freedesktop.MediaPlayer'
@@ -50,23 +49,15 @@ class ClementineCmdProc(cmdproc.CmdProc):
         iface = dbus.Interface(player, dbus_interface=interface)
         return command(iface)
 
-    def cmd_play(self, cmd):
+    def cmd_play(self, args):
         return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Play())
 
-    def cmd_pause(self, cmd):
+    def cmd_pause(self, args):
         return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Next())
 
-    def cmd_volume(self, cmd, level):
-        int_level = int(level)
-        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.VolumeSet(int_level))
-
-    def cmd_reply(self, cmd):
-        # global _last_sender
-        last_sender = None
-        # _state_lock.acquire()
-        last_sender = _last_sender.value
-        # _state_lock.release()
-        logger.info("Got REPLY command: %s.  Last sender was %s", cmd, last_sender)
+    def cmd_volume(self, args):
+        cmd, level = args
+        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.VolumeSet(level))
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender

@@ -88,9 +88,9 @@ def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     """
     # Store the results of each transition
     cmd = []
-    def arg():
-    def cmdproc():
-    def cmd():
+    # def arg():
+    # def cmdproc():
+    # def cmd():
     state = 'cmdserver_or_current_cmdproc'
 
 def build_cmd_dfa():

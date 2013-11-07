@@ -8,8 +8,10 @@ import gobject
 import argparse
 from dbus.mainloop.glib import DBusGMainLoop
 import logging
+import subprocess
 
-from multiprocessing import Process, Lock, Array
+from multiprocessing import Process, Lock, Array, Value
+from threading import Thread
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -21,12 +23,13 @@ logger = logging.getLogger(__name__)
 # Who last sent us a message (used as a received for a REPLY command)?
 # _last_sender = None
 _last_sender = Array('c', 1024, lock=True)
+_last_conversation = Value('i', lock=True)
 
 class PidginCmdProc(cmdproc.CmdProc):
     config = {
         'program': 'pidgin',
         'commands': [ 
-            [['cmd', 'REPLY'], ['arg', "name-or-search"]],
+            [['cmd', 'REPLY'], ['arg', ['many', 'str']]],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
@@ -41,27 +44,60 @@ class PidginCmdProc(cmdproc.CmdProc):
         setup_dbus_handlers()
         self.receive_and_dispatch_loop()
 
-    def cmd_reply(self, cmd):
-        # global _last_sender
+    def cmd_reply(self, args):
         last_sender = None
-        # _state_lock.acquire()
         last_sender = _last_sender.value
-        # _state_lock.release()
-        logger.info("Got REPLY command: %s.  Last sender was %s", cmd, last_sender)
+        logger.info("Got REPLY command: %s.  Last sender was %s", args, last_sender)
+        cmd, message = args
+
+        # logger.info("HERE GOES....")
+        # bus = dbus.SessionBus()
+        # logger.info("GOT DBUS....")
+        # logger.info("GOT VALUES....")
+        # obj = bus.get_object("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject")
+        # logger.info("GOT OBJECT....")
+        # purple = dbus.Interface(obj, "im.pidgin.purple.PurpleInterface")
+        # logger.info("GOT PURPLE....")
+        # # logger.info("purple.PurpleGetIms(): %s.", purple.PurpleGetIms())
+        # purple.PurpleConvImSend(purple.PurpleConvIm(last_conversation), " ".join(["bananas", "grapes"]))
+        # logger.info("DONE....")
+
+        last_sender = _last_sender.value
+        last_conversation = _last_conversation.value
+        send_im(last_conversation, " ".join(message[1]))
+
+        # obj = self.bus.get_object("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject")
+        # purple = dbus.Interface(obj, "im.pidgin.purple.PurpleInterface")
+        # logger.info("purple.PurpleGetIms(): %s.", purple.PurpleGetIms())
+        # purple.PurpleConvImSend(purple.PurpleConvIm(last_sender), " ".join(args))
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender
-    logger.info("DBUS: %s said: \"%s\", old _last_sender == %s", sender, message, _last_sender.value)
-    # _state_lock.acquire()
+    logger.info("receive_msg DBUS: %s said \"%s\", old _last_sender == %s", sender, message, _last_sender.value)
+    logger.info("receive_msg DBUS: conversation == %s", conversation)
+
     _last_sender.value = sender
-    # _state_lock.release()
+    _last_conversation.value = conversation
+
+    # This works...but its not where we want it
+    # logger.info("HERE GOES....")
+    # bus = dbus.SessionBus()
+    # last_sender = _last_sender.value
+    # last_conversation = _last_conversation.value
+    # obj = bus.get_object("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject")
+    # purple = dbus.Interface(obj, "im.pidgin.purple.PurpleInterface")
+    # logger.info("purple.PurpleGetIms(): %s.", purple.PurpleGetIms())
+    # purple.PurpleConvImSend(purple.PurpleConvIm(conversation), " ".join(["bananas", "grapes"]))
+    # logger.info("DONE....")
 
 def setup_dbus_handlers():
+    """
+    Spawn a separate thread that listens for dbus events. 
+    """
     logger.info("Setting up dbus handlers...")
     def setup():
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus = dbus.SessionBus()
-
         bus.add_signal_receiver(receive_msg,
                                 dbus_interface="im.pidgin.purple.PurpleInterface",
                                 signal_name="ReceivedImMsg")
@@ -70,10 +106,26 @@ def setup_dbus_handlers():
         logger.info("Run the loop....")
         loop.run()
         logger.info("Running")
+    dbus.mainloop.glib.threads_init()
     dbus_thread = Process(target=setup)
     logger.info("Start DBUS thread....")
     dbus_thread.start()
     logger.info("Started.")
+
+def send_dbus(service, path, method, args=[]):
+    """
+    So basically, I can't figure out threading with dbus in python, so just invoke qdbus command line program instead to send a reply...
+
+    qdbus im.pidgin.purple.PurpleService /im/pidgin/purple/PurpleObject im.pidgin.purple.PurpleInterface.PurpleConvIm $conversation
+    qdbus im.pidgin.purple.PurpleService /im/pidgin/purple/PurpleObject im.pidgin.purple.PurpleInterface.PurpleConvImSend $convIMResult 'hello world'
+    """
+    return subprocess.check_output(["qdbus", service, path, method] + [str(a) for a in args])
+
+def send_im(conversation, message):
+     # First we have to get a "ConvIm" id from the conversation id we got in receive_msg.
+     conv_im = int(send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvIm", [conversation]).rstrip())
+     # Then we use the ConvIm to identify the conversation and send it a message.
+     return send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvImSend", [conv_im, message]).rstrip()
 
 def main():
     parser = argparse.ArgumentParser(description="A pidgin command processor.")

@@ -22,7 +22,8 @@ class ReplServer(cmdserver.CmdServer):
         if cmd_strs[0] == 'SEND':
             program = cmd_strs[1]
             cmd_name = cmd_strs[2]
-            cmd_args = " ".join(cmd_strs[3:])
+            # cmd_args = " ".join(cmd_strs[3:])
+            cmd_args = cmd_strs[3:]
             cmd = package_cmd(cmd_name, cmd_args)
             self.send_cmd(program, cmd)
         else:

@@ -1,7 +1,7 @@
 from message import *
 import cmdserver
 
-from multiprocessing import Process
+from multiprocessing import Process, Value, Array, Lock, Manager
 import socket 
 import logging
 import argparse
@@ -30,6 +30,15 @@ class CmdProc(object):
             self.cmd_to_handler = cmd_to_handler
         self.port = cmdserver_port
         self.server = cmdserver_server
+
+
+        # Recording macros...
+        self._manager = Manager()
+        self._macrolock = Lock()
+        self._recording = Value('i', False, lock=False)
+        self._macroname = Array('c', 1024, lock=False)
+        self._macro_cmds = self._manager.list()
+
 
     def connect(self):
         """
@@ -83,6 +92,45 @@ class CmdProc(object):
         assert cmd[0][0] == 'cmd'
         command_name = cmd[0][1]
         return cmd_to_handler[command_name]
+
+    # Atomic operations on macros
+
+    def begin_recording(self, name):
+        self._macrolock.acquire()
+        assert self._macroname.value == ''
+        assert self._recording.value == False
+        self._macroname.value = name
+        self._recording.value = True
+        self._macrolock.release()
+
+    def _assert_recording(self, ):
+        assert self._macroname.value != ''
+        assert self._recording.value == True
+
+    def is_recording(self, ):
+        check = None
+        self._macrolock.acquire()
+        check = bool(self._recording.value)
+        self._macrolock.release()
+        return check
+
+    def stop_recording(self, ):
+        cmds = None
+        name = None
+        self._macrolock.acquire()
+        self._assert_recording()
+        name = self._macroname.value
+        cmds = list(self._macro_cmds)
+        self._macroname.value = ''
+        self._recording.value = False 
+        self._macrolock.release()
+        return name, cmds
+
+    def put_cmd(self, cmd):
+        self._macrolock.acquire()
+        self._assert_recording()
+        self._macro_cmds.append(cmd)
+        self._macrolock.release()
 
 def cmdproc_main(cmdproc_class, parser=None):
     if parser is None:
