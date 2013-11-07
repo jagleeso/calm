@@ -1,26 +1,16 @@
 #!/usr/bin/env python
 import cmdproc
+import mydbus
 
 # https://developer.pidgin.im/wiki/DbusHowto
 # provide asynchronous 
-import dbus
 import gobject
 import argparse
-from dbus.mainloop.glib import DBusGMainLoop
-import logging
 
-from multiprocessing import Process, Lock, Array
+import logging
 
 import logconfig
 logger = logging.getLogger(__name__)
-
-# Keeping track of pidgen messenger's state based on received messages.
-
-# Mutex over all messenger state.
-# _state_lock = Lock()
-# Who last sent us a message (used as a received for a REPLY command)?
-# _last_sender = None
-_last_sender = Array('c', 1024, lock=True)
 
 class ClementineCmdProc(cmdproc.CmdProc):
     config = {
@@ -33,31 +23,34 @@ class ClementineCmdProc(cmdproc.CmdProc):
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
-            "REPLY": self.cmd_reply,
+            "PLAY": self.cmd_play,
+            "PAUSE": self.cmd_pause,
+            "VOLUME": self.cmd_volume,
+            "NEXT": self.cmd_next,
+            "PREVIOUS": self.cmd_previous,
         }
         super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
-        self.bus = dbus.SessionBus()
-        self.player = bus.get_object('org.mpris.clementine', '/Player')
 
     def start(self):
         logger.info("Starting Clementine command processor...")
         self.connect()
         self.receive_and_dispatch_loop()
 
-    # 'org.freedesktop.MediaPlayer'
-    def dbus_cmd(self, interface, command):
-        iface = dbus.Interface(player, dbus_interface=interface)
-        return command(iface)
-
     def cmd_play(self, args):
-        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Play())
+        return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Play')
 
     def cmd_pause(self, args):
-        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.Next())
+        return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Pause')
+
+    def cmd_next(self, args):
+        return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Next')
+
+    def cmd_previous(self, args):
+        return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Previous')
 
     def cmd_volume(self, args):
         cmd, level = args
-        return dbus_cmd('org.freedesktop.MediaPlayer', lambda iface: iface.VolumeSet(level))
+        return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.VolumeSet', [level[1]])
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender
