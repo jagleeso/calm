@@ -39,7 +39,7 @@ def send(socket, msg):
     length = len(msg)
     # pack as 4 bytes
     packed = struct.pack("I", length)
-    logger.info("SEND: %s", msg)
+    # logger.info("SEND: %s", msg)
     socket.send(packed)
     return socket.send(msg)
 
@@ -47,7 +47,7 @@ def recv(socket):
     packed = socket.recv(MSG_SIZE_BYTES)
     length = struct.unpack("I", packed)[0]
     msg = socket.recv(length)
-    logger.info("RECV %s: %s", length, msg)
+    # logger.info("RECV %s: %s", length, msg)
     return msg
 
 def recv_msg(socket):
