@@ -1,0 +1,4 @@
+RECORD name
+SEND window LEFT
+SEND window RIGHT
+DONE

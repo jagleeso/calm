@@ -9,6 +9,21 @@ import argparse
 import logconfig
 logger = logging.getLogger(__name__)
 
+
+def madeup(arg1, arg2):
+    logger.info("arg1 is %s, arg2 is %s", arg1.value, arg2.value)
+
+# Recording macros...
+_manager = Manager()
+_macrolock = Lock()
+# For some reason if lock=True isn't set, things don't synchronize properly...!
+_recording = Value('i', False, lock=True)
+_macroname = Array('c', 1024, lock=True)
+_macro_cmds = _manager.list()
+_macros = _manager.dict()
+
+
+some_arg = Value('i', False, lock=True)
 class CmdProc(object):
     """
     Send the command server our configuration info, and await commands.
@@ -31,11 +46,12 @@ class CmdProc(object):
         self.port = cmdserver_port
         self.server = cmdserver_server
 
+        logger.error("calling __init__ in cmdproc")
         # Recording macros...
         self._manager = Manager()
         self._macrolock = Lock()
-        self._recording = Value('i', False, lock=False)
-        self._macroname = Array('c', 1024, lock=False)
+        self._recording = Value('i', False, lock=True)
+        self._macroname = Array('c', 1024, lock=True)
         self._macro_cmds = self._manager.list()
         self._macros = self._manager.dict()
 
@@ -72,12 +88,14 @@ class CmdProc(object):
         Dispatch a new thread to handle the next command (don't want to block on newly 
         arriving commands).
         """
+        global some_arg
         cmd = recv_cmd(self.socket)
         if cmd[0][1] == 'RECORD':
             macroname = cmd[1][1]
             # Time to record a macro; tell the command server we're ready.
             self.begin_recording(macroname)
             send(self.socket, 'Ready to record')
+            some_arg.value = 1
             return
         elif cmd[0][1] == 'DONE':
             self.stop_recording()
@@ -89,8 +107,12 @@ class CmdProc(object):
         handler = self.get_cmd_handler(cmd)
         if handler is None:
             handler = self.default_handler
+        logger.info("in cmdproc before starting process _recording == %s", _recording)
         p = Process(target=handler, args=(cmd,))
         p.start()
+        # logger.info("in cmdproc after starting process _recording == %s", _recording)
+        # p = Process(target=madeup, args=(_recording, some_arg))
+        # p.start()
 
     def receive_and_dispatch_loop(self):
         while True:
@@ -100,7 +122,7 @@ class CmdProc(object):
         """
         Look at the first 'cmd', and dispatch on cmd_to_handler (dict from cmd name to handler).
         """
-        logger.info("cmd %s, cmd_to_handler %s", cmd, cmd_to_handler)
+        # logger.info("cmd %s, cmd_to_handler %s", cmd, cmd_to_handler)
         assert cmd[0][0] == 'cmd'
         command_name = cmd[0][1]
         return cmd_to_handler[command_name]
@@ -108,6 +130,13 @@ class CmdProc(object):
     # Atomic operations on macros
 
     def replay_macro(self, name):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         macro_cmds = None
         self._macrolock.acquire()
         macro_cmds = self._macros.get(name, None)
@@ -116,30 +145,62 @@ class CmdProc(object):
             # TODO: notify unknown macro
             logger.error("No such macro %s", name)
             return
-        for cmd in macro_cmds:
-            cmd()
+        for args, kwargs in macro_cmds:
+            logger.info("REPLAY %s: args = %s, kwargs = %s", name, args, kwargs)
+            handler = self.get_cmd_handler(args)
+            handler(args, **kwargs)
 
     def begin_recording(self, name):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         self._macrolock.acquire()
         assert self._macroname.value == ''
         assert self._recording.value == False
         self._macroname.value = name
         self._recording.value = True
         logger.info("begin_recording: name = %s, is_recording = %s", self._macroname.value, self._recording.value)
+        self._assert_recording()
         self._macrolock.release()
 
     def _assert_recording(self):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         assert self._macroname.value != ''
         assert self._recording.value == True
 
     def is_recording(self):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         check = None
         self._macrolock.acquire()
         check = bool(self._recording.value)
+        # logger.info("is_recording: check = %s", check)
         self._macrolock.release()
         return check
 
     def stop_recording(self):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         cmds = None
         name = None
 
@@ -151,17 +212,34 @@ class CmdProc(object):
 
         self._macroname.value = ''
         self._recording.value = False 
-        logger.info("stop_recording: name = %s, cmds = %s, is_recording = %s", name, cmds, self._recording.value)
+        logger.info("stop_recording: name = %s, cmds = %s, is_recording = %s, _macro_cmds = %s", name, cmds, self._recording.value, self._macro_cmds)
         self._macrolock.release()
 
         return name, cmds
 
-    def put_cmd(self, cmd):
+    def put_cmd(self, args, **kwargs):
+        global _manager
+        global _macrolock
+        global _recording
+        global _macroname
+        global _macro_cmds
+        global _macros
+
         self._macrolock.acquire()
         self._assert_recording()
-        self._macro_cmds.append(cmd)
-        logger.info("begin_recording: cmd = %s, _macro_cmds = %s", cmd, list(self._macro_cmds))
+        # self._macro_cmds.append([['cmd', cmd], args, kwargs])
+        self._macro_cmds.append([args, kwargs])
+        logger.info("put_cmd: args = %s, kwargs = %s, _macro_cmds = %s", args, kwargs, list(self._macro_cmds))
         self._macrolock.release()
+
+    # def log_recording(self):
+    #     global _manager
+    #     global _macrolock
+    #     global _recording
+    #     global _macroname
+    #     global _macro_cmds
+    #     global _macros
+    #     logger.info("in cmdproc from window... _recording == %s", self._recording.value);
 
 def cmdproc_main(cmdproc_class, parser=None):
     if parser is None:

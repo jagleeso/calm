@@ -151,6 +151,9 @@ def exit_cmdserver(signum, frame):
     signal.signal(signal.SIGINT, _ORIGINAL_SIGINT)
     signal.signal(signal.SIGTERM, _ORIGINAL_SIGTERM)
     signal.signal(signal.SIGHUP, _ORIGINAL_SIGHUP)
+    exit_server()
+
+def exit_server():
     logger.info("Terminating command server and command server processes (%s)...", _CMDPROC_PIDS)
     if _CMDPROC_PIDS is not None:
         for pid in _CMDPROC_PIDS:

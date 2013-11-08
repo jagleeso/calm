@@ -14,7 +14,10 @@ class ReplServer(cmdserver.CmdServer):
         logger.info("Starting REPL server...")
         self.startup_cmdprocs()
         while True:
-            cmd_string = raw_input(">> ")
+            try:
+                cmd_string = raw_input(">> ")
+            except EOFError:
+                cmdserver.exit_server()
             cmd = cmd_string.split()
             self.dispatch_cmd_to_cmdproc(cmd)
 
