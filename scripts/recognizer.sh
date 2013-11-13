@@ -13,5 +13,7 @@ HMM=/usr/share/pocketsphinx/model/hmm/wsj1/
 # -maxhmmpf   2500 \
 # -maxcdsenpf 1500 \
 # -maxwpf     20 \
+
+# -cmn current \
 pocketsphinx_continuous -lm $LM -dict $DICT \
     -hmm $HMM \
