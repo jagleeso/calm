@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 repl_input="$1"
 sleep_period=1
-shift 2
+shift 1
 
 read_input() {
     while read line; do
@@ -14,4 +14,4 @@ read_input() {
 }
 
 cd $(dirname $0)/..
-read_input $repl_input | src/cmdserver/replserver src/cmdproc/* --port "$@" 
+read_input $repl_input | src/cmdserver/replserver src/cmdproc/* "$@" 

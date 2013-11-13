@@ -135,11 +135,15 @@ def build_cmd_dfa():
     """
     pass
 
-def cmdserver_main(cmdserver_class, parser=None):
+def cmdserver_arg_parser(parser=None):
     if parser is None:
         parser = argparse.ArgumentParser(description="A command server.")
     parser.add_argument('cmdproc_paths', nargs='+')
     parser.add_argument('--port', type=int, default=DEFAULT_CMDSERVER_PORT)
+    return parser
+
+def cmdserver_main(cmdserver_class, parser=None):
+    parser = cmdserver_arg_parser(parser)
     args = parser.parse_args()
 
     cmdserver = cmdserver_class(args.cmdproc_paths, args.port)

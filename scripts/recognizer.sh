@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-cd $(dirname $0)/..
-DICT=resource/lmtool/calm.dic
-LM=resource/lmtool/calm.lm
-HMM=/usr/share/pocketsphinx/model/hmm/wsj1/
+cd $(dirname $0)
+source ./common.sh
+cd_root
+
 # extra params from outdated website...they don't even work.
 # http://www.speech.cs.cmu.edu/sphinx/models/#am
 #
