@@ -5,6 +5,10 @@
 <s> LEFT </s>
 <s> RIGHT </s>
 <s> MAXIMIZE </s>
+<s> TOP LEFT </s>
+<s> TOP RIGHT </s>
+<s> BOTTOM LEFT </s>
+<s> BOTTOM RIGHT </s>
 <s> REPLY </s>
 <s> PLAY </s>
 <s> PAUSE </s>

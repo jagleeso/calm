@@ -123,9 +123,11 @@ class CmdProc(object):
         Look at the first 'cmd', and dispatch on cmd_to_handler (dict from cmd name to handler).
         """
         # logger.info("cmd %s, cmd_to_handler %s", cmd, cmd_to_handler)
-        assert cmd[0][0] == 'cmd'
-        command_name = cmd[0][1]
-        return cmd_to_handler[command_name]
+        cmds = tuple([c[1] for c in cmd if c[0] == 'cmd'])
+        # assert cmd[0][0] == 'cmd'
+        # command_name = cmd[0][1]
+        # return cmd_to_handler[command_name]
+        return cmd_to_handler[cmds]
 
     # Atomic operations on macros
 

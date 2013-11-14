@@ -25,11 +25,11 @@ class ClementineCmdProc(cmdproc.CmdProc):
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
-            "PLAY": self.cmd_play,
-            "PAUSE": self.cmd_pause,
-            "VOLUME": self.cmd_volume,
-            "NEXT": self.cmd_next,
-            "PREVIOUS": self.cmd_previous,
+            ("PLAY",): self.cmd_play,
+            ("PAUSE",): self.cmd_pause,
+            ("VOLUME",): self.cmd_volume,
+            ("NEXT",): self.cmd_next,
+            ("PREVIOUS",): self.cmd_previous,
         }
         super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
 

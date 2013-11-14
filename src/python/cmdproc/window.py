@@ -21,13 +21,21 @@ class WindowCmdProc(cmdproc.CmdProc):
             [['cmd', 'LEFT']],
             [['cmd', 'RIGHT']],
             [['cmd', 'MAXIMIZE']],
+            [['cmd', 'TOP'], ['cmd', 'LEFT']],
+            [['cmd', 'TOP'], ['cmd', 'RIGHT']],
+            [['cmd', 'BOTTOM'], ['cmd', 'LEFT']],
+            [['cmd', 'BOTTOM'], ['cmd', 'RIGHT']],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
-            'LEFT': self.cmd_left,
-            'RIGHT': self.cmd_right,
-            'MAXIMIZE': self.cmd_maximize,
+            ('LEFT',): self.cmd_left,
+            ('RIGHT',): self.cmd_right,
+            ('MAXIMIZE',): self.cmd_maximize,
+            ('TOP', 'LEFT'): self.cmd_top_left,
+            ('TOP', 'RIGHT'): self.cmd_top_right,
+            ('BOTTOM', 'LEFT'): self.cmd_bottom_left,
+            ('BOTTOM', 'RIGHT'): self.cmd_bottom_right,
         }
         super(WindowCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
         self.screen_width, self.screen_height = get_resolution()
@@ -72,6 +80,62 @@ class WindowCmdProc(cmdproc.CmdProc):
         y = 0
         width = self.screen_width // 2
         height = self.screen_height
+        move_window(kwargs['window'], x, y, width, height)
+        focus_window(kwargs['window'])
+
+    def cmd_top_left(self, args, **kwargs):
+        # import rpdb; rpdb.set_trace()
+        # logger.info("in window... recording == %s", self._recording.value);
+        # self.log_recording()
+        if 'window' not in kwargs:
+            kwargs['window'] = get_current_window()
+        if not self.macro_check(kwargs['window'], args, kwargs):
+            return
+        x = 0
+        y = 0
+        width = self.screen_width // 2
+        height = self.screen_height // 2
+        move_window(kwargs['window'], x, y, width, height)
+        focus_window(kwargs['window'])
+
+    def cmd_top_right(self, args, **kwargs):
+        if 'window' not in kwargs:
+            kwargs['window'] = get_current_window()
+        if not self.macro_check(kwargs['window'], args, kwargs):
+            return
+        x = self.screen_width // 2
+        y = 0
+        width = self.screen_width // 2
+        height = self.screen_height // 2
+        move_window(kwargs['window'], x, y, width, height)
+        focus_window(kwargs['window'])
+
+    def cmd_bottom_left(self, args, **kwargs):
+        # import rpdb; rpdb.set_trace()
+        # logger.info("in window... recording == %s", self._recording.value);
+        # self.log_recording()
+        if 'window' not in kwargs:
+            kwargs['window'] = get_current_window()
+        if not self.macro_check(kwargs['window'], args, kwargs):
+            return
+        x = 0
+        y = self.screen_height // 2
+        width = self.screen_width // 2
+        height = self.screen_height // 2
+        move_window(kwargs['window'], x, y, width, height)
+        focus_window(kwargs['window'])
+
+    def cmd_bottom_right(self, args, **kwargs):
+        if 'window' not in kwargs:
+            kwargs['window'] = get_current_window()
+        if not self.macro_check(kwargs['window'], args, kwargs):
+            return
+        x = self.screen_width // 2
+        y = self.screen_height // 2
+        width = self.screen_width // 2
+        height = self.screen_height // 2
+        width = self.screen_width // 2
+        height = self.screen_height // 2
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 

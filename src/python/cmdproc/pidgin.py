@@ -35,7 +35,7 @@ class PidginCmdProc(cmdproc.CmdProc):
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
-            "REPLY": self.cmd_reply,
+            ("REPLY",): self.cmd_reply,
         }
         super(PidginCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
 
