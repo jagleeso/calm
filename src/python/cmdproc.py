@@ -107,7 +107,7 @@ class CmdProc(object):
         handler = self.get_cmd_handler(cmd)
         if handler is None:
             handler = self.default_handler
-        logger.info("in cmdproc before starting process _recording == %s", _recording)
+        # logger.info("in cmdproc before starting process _recording == %s", _recording)
         p = Process(target=handler, args=(cmd,))
         p.start()
         # logger.info("in cmdproc after starting process _recording == %s", _recording)

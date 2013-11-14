@@ -29,7 +29,8 @@ class PidginCmdProc(cmdproc.CmdProc):
     config = {
         'program': 'pidgin',
         'commands': [ 
-            [['cmd', 'REPLY'], ['arg', ['many', 'str']]],
+            # [['cmd', 'REPLY'], ['arg', ['many', 'str']]],
+            [['cmd', 'REPLY'], ['arg', 'str', "Reply"]],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
@@ -64,7 +65,7 @@ class PidginCmdProc(cmdproc.CmdProc):
 
         last_sender = _last_sender.value
         last_conversation = _last_conversation.value
-        send_im(last_conversation, " ".join(message[1]))
+        send_im(last_conversation, message[1])
 
         # obj = self.bus.get_object("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject")
         # purple = dbus.Interface(obj, "im.pidgin.purple.PurpleInterface")
@@ -123,9 +124,12 @@ def send_dbus(service, path, method, args=[]):
 
 def send_im(conversation, message):
      # First we have to get a "ConvIm" id from the conversation id we got in receive_msg.
-     conv_im = int(send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvIm", [conversation]).rstrip())
-     # Then we use the ConvIm to identify the conversation and send it a message.
-     return send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvImSend", [conv_im, message]).rstrip()
+     try: 
+         conv_im = int(send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvIm", [conversation]).rstrip())
+         # Then we use the ConvIm to identify the conversation and send it a message.
+         return send_dbus("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject", "im.pidgin.purple.PurpleInterface.PurpleConvImSend", [conv_im, message]).rstrip()
+     except subprocess.CalledProcessError:
+         logger.exception("Looks like pidgin isn't running")
 
 def main():
     parser = argparse.ArgumentParser(description="A pidgin command processor.")
