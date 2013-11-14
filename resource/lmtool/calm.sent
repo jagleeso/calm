@@ -1,7 +1,13 @@
-<s> OPEN BROWSER </s>
-<s> NEW E-MAIL </s>
-<s> FORWARD </s>
-<s> BACKWARD </s>
-<s> NEXT WINDOW </s>
-<s> LAST WINDOW </s>
-<s> OPEN MUSIC PLAYER </s>
+<s> REPLAY </s>
+<s> RECORD </s>
+<s> DONE </s>
+<s> SEND </s>
+<s> LEFT </s>
+<s> RIGHT </s>
+<s> MAXIMIZE </s>
+<s> REPLY </s>
+<s> PLAY </s>
+<s> PAUSE </s>
+<s> VOLUME </s>
+<s> NEXT </s>
+<s> PREVIOUS </s>

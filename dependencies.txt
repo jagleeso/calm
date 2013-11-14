@@ -1,7 +1,14 @@
 apt-get
 ==========================================================================================
 pocketsphinx-utils
+pocketsphinx-hmm-wsj1
 gstreamer0.10-pocketsphinx
+python-wxtools 
+xdotool
+wmctrl
+python-gst0.10
+python-pocketsphinx 
+python-sphinxbase 
 
 python pip
 ==========================================================================================

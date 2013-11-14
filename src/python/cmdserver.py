@@ -13,6 +13,15 @@ import logconfig
 logger = logging.getLogger(__name__)
 
 class CmdServer(object):
+    config = {
+        'program': 'cmdserver',
+        'commands': [ 
+            [['cmd', 'REPLAY'], ['arg', 'str']],
+            [['cmd', 'RECORD'], ['arg', 'str']],
+            [['cmd', 'DONE']],
+            [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
+        ],
+    }
     """
     Spawn cmdprocs and send them sockets to listen to messages on, and register their 
     names with the sockets
@@ -27,6 +36,8 @@ class CmdServer(object):
         self._cmdproc_config = {}
         self._program_to_socket = {}
         self._program_to_pid = {}
+
+        self.is_recording = False
 
     def start(self):
         raise NotImplementedError
@@ -80,7 +91,9 @@ class CmdServer(object):
                     # Tell processes to stop recording the macro, since some of them might 
                     # be recording.
                     send_cmd(socket, [['cmd', 'DONE']])
+                self.is_recording = False
                 return False
+        self.is_recording = True
         return True
 
     def replay_macro(self, name):
@@ -96,8 +109,10 @@ class CmdServer(object):
         """
         Tell the command processors to stop recording the macro.
         """
-        for socket in self._program_to_socket.values():
-            send_cmd(socket, [['cmd', 'DONE']])
+        if self.is_recording: 
+            for socket in self._program_to_socket.values():
+                send_cmd(socket, [['cmd', 'DONE']])
+        self.is_recording = False
 
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     """

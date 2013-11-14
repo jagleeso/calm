@@ -1,7 +1,13 @@
-open browser
-new e-mail
-forward
-backward
-next window
-last window
-open music player
+REPLAY
+RECORD
+DONE
+SEND
+LEFT
+RIGHT
+MAXIMIZE
+REPLY
+PLAY
+PAUSE
+VOLUME
+NEXT
+PREVIOUS

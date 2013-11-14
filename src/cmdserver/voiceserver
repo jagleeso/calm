@@ -74,6 +74,12 @@ class VoiceServer(cmdserver.CmdServer):
     def final_result(self, hyp, uttid):
         """Insert the final result."""
         logger.info("hyp == {hyp}, uttid == {uttid}".format(**locals()))
+        cmd_words = hyp.split()
+        try:
+            self._cmd_dfa.cmd(cmd_words)
+        except (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
+                cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand) as e:
+            logger.exception(e.message)
 
     # Glue code for passing messages to the handler thread...
 

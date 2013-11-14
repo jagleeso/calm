@@ -6,3 +6,6 @@
   - DFA for cmd server + cmd proc for taking 'cmd's and passing to 
     command server
   - pass cmd if falls within constraints (duplicates, etc., check output)
+
+  - generate command corpa
+

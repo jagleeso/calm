@@ -1,4 +1,4 @@
-Language model created by QuickLM on Tue Nov 12 21:09:28 EST 2013
+Language model created by QuickLM on Thu Nov 14 01:53:25 EST 2013
 Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
 
 The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
@@ -7,61 +7,71 @@ The code that was used to produce this language model is available in Open Sourc
 Please visit http://www.speech.cs.cmu.edu/tools/ for more information
 
 The (fixed) discount mass is 0.5. The backoffs are computed using the ratio method.
-This model based on a corpus of 7 sentences and 13 words
+This model based on a corpus of 13 sentences and 15 words
 
 \data\
-ngram 1=13
-ngram 2=18
+ngram 1=15
+ngram 2=26
 ngram 3=13
 
 \1-grams:
--0.8873 </s> -0.3010
--0.8873 <s> -0.2407
--1.7324 BACKWARD -0.2407
--1.7324 BROWSER -0.2407
--1.7324 E-MAIL -0.2407
--1.7324 FORWARD -0.2407
--1.7324 LAST -0.2846
--1.7324 MUSIC -0.2929
--1.7324 NEW -0.2929
--1.7324 NEXT -0.2846
--1.4314 OPEN -0.2846
--1.7324 PLAYER -0.2407
--1.4314 WINDOW -0.2407
+-0.7782 </s> -0.3010
+-0.7782 <s> -0.2218
+-1.8921 DONE -0.2218
+-1.8921 LEFT -0.2218
+-1.8921 MAXIMIZE -0.2218
+-1.8921 NEXT -0.2218
+-1.8921 PAUSE -0.2218
+-1.8921 PLAY -0.2218
+-1.8921 PREVIOUS -0.2218
+-1.8921 RECORD -0.2218
+-1.8921 REPLAY -0.2218
+-1.8921 REPLY -0.2218
+-1.8921 RIGHT -0.2218
+-1.8921 SEND -0.2218
+-1.8921 VOLUME -0.2218
 
 \2-grams:
--1.1461 <s> BACKWARD 0.0000
--1.1461 <s> FORWARD 0.0000
--1.1461 <s> LAST 0.0000
--1.1461 <s> NEW 0.0000
--1.1461 <s> NEXT 0.0000
--0.8451 <s> OPEN 0.0000
--0.3010 BACKWARD </s> -0.3010
--0.3010 BROWSER </s> -0.3010
--0.3010 E-MAIL </s> -0.3010
--0.3010 FORWARD </s> -0.3010
--0.3010 LAST WINDOW 0.0000
--0.3010 MUSIC PLAYER 0.0000
--0.3010 NEW E-MAIL 0.0000
--0.3010 NEXT WINDOW 0.0000
--0.6021 OPEN BROWSER 0.0000
--0.6021 OPEN MUSIC 0.0000
--0.3010 PLAYER </s> -0.3010
--0.3010 WINDOW </s> -0.3010
+-1.4150 <s> DONE 0.0000
+-1.4150 <s> LEFT 0.0000
+-1.4150 <s> MAXIMIZE 0.0000
+-1.4150 <s> NEXT 0.0000
+-1.4150 <s> PAUSE 0.0000
+-1.4150 <s> PLAY 0.0000
+-1.4150 <s> PREVIOUS 0.0000
+-1.4150 <s> RECORD 0.0000
+-1.4150 <s> REPLAY 0.0000
+-1.4150 <s> REPLY 0.0000
+-1.4150 <s> RIGHT 0.0000
+-1.4150 <s> SEND 0.0000
+-1.4150 <s> VOLUME 0.0000
+-0.3010 DONE </s> -0.3010
+-0.3010 LEFT </s> -0.3010
+-0.3010 MAXIMIZE </s> -0.3010
+-0.3010 NEXT </s> -0.3010
+-0.3010 PAUSE </s> -0.3010
+-0.3010 PLAY </s> -0.3010
+-0.3010 PREVIOUS </s> -0.3010
+-0.3010 RECORD </s> -0.3010
+-0.3010 REPLAY </s> -0.3010
+-0.3010 REPLY </s> -0.3010
+-0.3010 RIGHT </s> -0.3010
+-0.3010 SEND </s> -0.3010
+-0.3010 VOLUME </s> -0.3010
 
 \3-grams:
--0.3010 <s> BACKWARD </s>
--0.3010 <s> FORWARD </s>
--0.3010 <s> LAST WINDOW
--0.3010 <s> NEW E-MAIL
--0.3010 <s> NEXT WINDOW
--0.6021 <s> OPEN BROWSER
--0.6021 <s> OPEN MUSIC
--0.3010 LAST WINDOW </s>
--0.3010 MUSIC PLAYER </s>
--0.3010 NEW E-MAIL </s>
--0.3010 NEXT WINDOW </s>
--0.3010 OPEN BROWSER </s>
--0.3010 OPEN MUSIC PLAYER
+-0.3010 <s> DONE </s>
+-0.3010 <s> LEFT </s>
+-0.3010 <s> MAXIMIZE </s>
+-0.3010 <s> NEXT </s>
+-0.3010 <s> PAUSE </s>
+-0.3010 <s> PLAY </s>
+-0.3010 <s> PREVIOUS </s>
+-0.3010 <s> RECORD </s>
+-0.3010 <s> REPLAY </s>
+-0.3010 <s> REPLY </s>
+-0.3010 <s> RIGHT </s>
+-0.3010 <s> SEND </s>
+-0.3010 <s> VOLUME </s>
 
 \end\

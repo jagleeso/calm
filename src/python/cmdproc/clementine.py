@@ -42,32 +42,32 @@ class ClementineCmdProc(cmdproc.CmdProc):
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Play')
         except mydbus.WrappedCalledProcessError as e:
-            logger.info("Looks like clementine isn't running...")
+            logger.exception("Looks like clementine isn't running...")
 
     def cmd_pause(self, args):
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Pause')
         except mydbus.WrappedCalledProcessError as e:
-            logger.info("Looks like clementine isn't running...")
+            logger.exception("Looks like clementine isn't running...")
 
     def cmd_next(self, args):
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Next')
         except mydbus.WrappedCalledProcessError as e:
-            logger.info("Looks like clementine isn't running...")
+            logger.exception("Looks like clementine isn't running...")
 
     def cmd_previous(self, args):
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Previous')
         except mydbus.WrappedCalledProcessError as e:
-            logger.info("Looks like clementine isn't running...")
+            logger.exception("Looks like clementine isn't running...")
 
     def cmd_volume(self, args):
         cmd, level = args
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.VolumeSet', [level[1]])
         except mydbus.WrappedCalledProcessError as e:
-            logger.info("Looks like clementine isn't running...")
+            logger.exception("Looks like clementine isn't running...")
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender
