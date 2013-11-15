@@ -9,3 +9,6 @@
 
   - generate command corpa
 
+  - make gui prompts work
+  - add autocomplete to them
+
