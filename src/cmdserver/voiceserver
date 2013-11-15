@@ -6,12 +6,63 @@ import argparse
 import logconfig
 logger = logging.getLogger(__name__)
 
-import gtk
+# import gtk
 import gobject
 import pygst
 pygst.require('0.10')
 gobject.threads_init()
 import gst
+
+import actextcontrol
+import wx
+
+def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_sensitive=False):
+    panel = wx.Panel(frm)
+    
+    label1 = wx.StaticText(panel, -1, 'Matches anywhere in string')
+    ctrl1 = actextcontrol.ACTextControl(panel, candidates=[], add_option=False)
+
+    fgsizer = wx.FlexGridSizer(rows=4, cols=2, vgap=20, hgap=10)
+    fgsizer.AddMany([label1, ctrl1])
+    
+    panel.SetAutoLayout(True)
+    panel.SetSizer(fgsizer)
+    fgsizer.Fit(panel)
+
+    ctrl1.SetValue('')
+    
+    panel.Layout()
+
+    return ctrl1
+
+class AutocompleteGUIInputHandler(object):
+    def __init__(self):
+        self.app = wx.PySimpleApp()
+        self.frm = wx.Frame(None, -1, "Test", style=wx.DEFAULT_FRAME_STYLE)
+        self.app.SetTopWindow(self.frm)
+        self.frm.SetSize((400, 250))
+        self.frm.Bind(wx.EVT_CLOSE, self._on_close)
+        self.string_fetcher = wx_string_fetcher(self.app, self.frm)
+
+    def _on_close(self, event):
+        assert self.string_fetcher.callback is not None
+        self.frm.Hide()
+        self.string_fetcher.callback(None)
+
+    def ask_for_string(self, description, candidates, callback):
+        self.frm.SetTitle(description)
+        self.string_fetcher.candidates = candidates
+        def finish_input_wrapper(string):
+            self.frm.Hide()
+            return callback(string)
+        self.string_fetcher.callback = finish_input_wrapper
+        self.string_fetcher.SetFocus()
+        self.frm.Show()
+        # string = raw_input("Give me a {description}: ".format(**locals()))
+        # return string
+
+    def main_loop(self):
+        self.app.MainLoop()
 
 class VoiceServer(cmdserver.CmdServer):
     def __init__(self, cmdproc_paths, port, ps_lm, ps_dict):
@@ -44,8 +95,11 @@ class VoiceServer(cmdserver.CmdServer):
     def start(self):
         logger.info("Starting REPL server...")
         self.startup_cmdprocs()
+        self._cmd_dfa._string_input_handler = AutocompleteGUIInputHandler()
         self.init_gst()
-        gtk.main()
+        self._cmd_dfa._string_input_handler.main_loop()
+        # actextcontrol.test()
+        # gtk.main()
         # while True:
         #     try:
         #         cmd_string = raw_input(">> ")
@@ -69,11 +123,11 @@ class VoiceServer(cmdserver.CmdServer):
     def partial_result(self, hyp, uttid):
         """Delete any previous selection, insert text and select it."""
         # All this stuff appears as one single action
-        logger.info("hyp == {hyp}, uttid == {uttid}".format(**locals()))
+        logger.info("PARTIAL: hyp == {hyp}, uttid == {uttid}".format(**locals()))
 
     def final_result(self, hyp, uttid):
         """Insert the final result."""
-        logger.info("hyp == {hyp}, uttid == {uttid}".format(**locals()))
+        logger.info("FINAL: hyp == {hyp}, uttid == {uttid}".format(**locals()))
         cmd_words = hyp.split()
         try:
             self._cmd_dfa.cmd(cmd_words)
