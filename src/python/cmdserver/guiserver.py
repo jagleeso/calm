@@ -3,30 +3,21 @@ import cmdserver
 import logging
 import argparse
 
+from cmdserver import voiceserver
+
 import logconfig
 logger = logging.getLogger(__name__)
 
-class ReplServer(cmdserver.CmdServer):
+class GUIServer(cmdserver.CmdServer):
     def __init__(self, cmdproc_paths, port):
-        super(ReplServer, self).__init__(cmdproc_paths, port)
+        super(GUIServer, self).__init__(cmdproc_paths, port)
 
     def start(self):
-        logger.info("Starting REPL server...")
+        logger.info("Starting GUI server...")
         self.startup_cmdprocs()
-        while True:
-            try:
-                cmd_string = raw_input(">> ")
-            except EOFError:
-                cmdserver.exit_server()
-            cmd = cmd_string.split()
-            self.dispatch_cmd_to_cmdproc(cmd)
-
-    def dispatch_cmd_to_cmdproc(self, cmd_strs):
-        try:
-            self._cmd_dfa.cmd(cmd_strs)
-        except (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
-                cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand) as e:
-            logger.exception(e.message)
+        self._cmd_dfa._string_input_handler = voiceserver.AutocompleteGUIInputHandler()
+        self.setup_dispatch_loop()
+        self._cmd_dfa._string_input_handler.main_loop()
 
     # def dispatch_cmd_to_cmdproc(self, cmd_strs):
     #     if len(cmd_strs) < 1:
@@ -58,11 +49,8 @@ def package_cmd(cmd_name, cmd_args):
     return [['cmd', cmd_name], ['arg', cmd_args]]
 
 def main():
-    # logger.setLevel(logging.INFO)
-    logger.info("TEST")
-
-    parser = argparse.ArgumentParser(description="A REPL command server.")
-    args, server = cmdserver.cmdserver_main(ReplServer, parser)
+    parser = argparse.ArgumentParser(description="A GUI command server.")
+    args, server = cmdserver.cmdserver_main(GUIServer, parser)
 
     server.start()
 

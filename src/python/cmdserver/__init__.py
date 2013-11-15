@@ -6,6 +6,7 @@ import socket
 # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 import logging
 import signal
+import traceback
 
 DEFAULT_CMDSERVER_PORT = 2525
 
@@ -76,6 +77,7 @@ class CmdServer(object):
         host = 'localhost'
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.socket.bind((host, self.port))
 
     def startup_cmdprocs(self):
@@ -133,6 +135,35 @@ class CmdServer(object):
             for socket in self._program_to_socket.values():
                 send_cmd(socket, [['cmd', 'DONE']])
         self.is_recording = False
+
+    def setup_dispatch_loop(self):
+        def cmd_string_cb(cmd_string):
+            if cmd_string.lower() in ['quit', 'exit']:
+                cmdserver.exit_server()
+            if self._cmd_dfa._asking_for_input:
+                logger.info("We're asking the user for input, hold off on commands for now...")
+                return
+            else:
+                cmd = cmd_string.split()
+                self.dispatch_cmd_to_cmdproc(cmd, handle_next_cmd)
+                # handle_next_cmd(cmd_string_cb)
+        def handle_next_cmd():
+            logger.info("asking_for_input == %s, cmd_dfa == %s", self._cmd_dfa._asking_for_input, self._cmd_dfa)
+            self._cmd_dfa.ask_for_string("command", cmd_string_cb, [c[1] for c in self.config['commands'] if c[0] == 'cmd'])
+        handle_next_cmd()
+
+    def dispatch_cmd_to_cmdproc(self, cmd_strs, callback):
+        def err(e):
+            # (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
+            # cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand)
+            try:
+                # hack to get the stacktrace
+                raise e
+            except:
+                pass
+            logger.exception(e.message)
+            callback()
+        self._cmd_dfa.cmd(cmd_strs, callback, err)
 
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     """
@@ -272,9 +303,13 @@ class CmdDFA(object):
         self._is_sending = False
         self._receiving_cmdproc = None 
 
-    def cmd(self, words):
+    def cmd(self, words, callback, err):
         """
         Interpret a command for the server or the current in focus application.
+
+        Call callback when we're ready to handle the next command.
+
+        When receiving a bad command, an exception will be called as an argument to err.
         """
         if self._asking_for_input:
             logger.info("We're asking the user for input, hold off on commands for now...")
@@ -282,57 +317,70 @@ class CmdDFA(object):
         cmd = []
         def consume(i, cmd_str):
             if i >= len(words):
-                raise IncompleteCmdServerCommand(cmd) 
+                err(IncompleteCmdServerCommand(cmd))
+                return
             elif words[i] == cmd_str:
                 cmd.append(['cmd', cmd_str])
             else:
-                raise BadCmdServerCommand(cmd, words[i]) 
+                # TODO: wrong, shouldn't call err here (unless last command tried)
+                err(BadCmdServerCommand(cmd, words[i]))
+                return
         # TODO: add try / except and then handle current application in focus
+        logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
             def send_cmd_cb(cmd):
                 self._cmdserver.send_cmd(self._receiving_cmdproc, cmd)
                 self.done_sending()
-            cmd = self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb)
+                callback()
+            cmd = self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb, err)
             return
-        i = 0
-        try:
-            consume(i, 'SEND')
-            i += 1
-        except BadCmdServerCommand:
-            try:
-                consume(i, 'RECORD')
-                i += 1
-                def start_recording_cb(macroname):
-                    self._cmdserver.record_macro(macroname)
-                self.ask_for_string('the name of your recording', start_recording_cb, self._cmdserver.macros)
-                return
-            except BadCmdServerCommand:
-                try:
-                    consume(i, 'DONE')
-                    i += 1
-                    self._cmdserver.end_macro()
-                    return
-                except BadCmdServerCommand:
-                    consume(i, 'REPLAY')
-                    i += 1
-                    def replay_macro_cb(macroname):
-                        self._cmdserver.replay_macro(macroname)
-                    self.ask_for_string('the recording to replay', replay_macro_cb, self._cmdserver.macros)
-                    return
-        # TODO: use voice for this
-        def get_ready_to_send_cb(cmdproc):
-            logger.info("send to... %s", cmdproc)
-            if cmdproc not in self._cmdserver._cmdproc_config:
-                # self.error("No such program named {cmdproc}".format(**locals()))
-                raise BadCmdServerCommand(cmd, cmdproc)
-            self.get_ready_to_send(cmdproc)
-        self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
 
-    def cmdproc_cmd(self, cmdproc, words, cmd_callback):
+        def is_cmd(cmd_str):
+            if words[0] == cmd_str:
+                cmd.append(['cmd', cmd_str])
+                return True
+            return False
+
+        if len(words) < 1:
+            err(IncompleteCmdServerCommand(cmd))
+            return
+        elif is_cmd('SEND'):
+            # TODO: use voice for this
+            def get_ready_to_send_cb(cmdproc):
+                logger.info("send to... %s", cmdproc)
+                if cmdproc not in self._cmdserver._cmdproc_config:
+                    # self.error("No such program named {cmdproc}".format(**locals()))
+                    # raise BadCmdServerCommand(cmd, cmdproc)
+                    err(BadCmdServerCommand(cmd, cmdproc))
+                    return
+                self.get_ready_to_send(cmdproc)
+                callback()
+            self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
+        elif is_cmd('RECORD'):
+            def start_recording_cb(macroname):
+                self._cmdserver.record_macro(macroname)
+                callback()
+            self.ask_for_string('the name of your recording', start_recording_cb, self._cmdserver.macros)
+            return
+        elif is_cmd('DONE'):
+            self._cmdserver.end_macro()
+            callback()
+            return
+        elif is_cmd('REPLAY'):
+            def replay_macro_cb(macroname):
+                self._cmdserver.replay_macro(macroname)
+                callback()
+            self.ask_for_string('the recording to replay', replay_macro_cb, self._cmdserver.macros)
+            return
+        else:
+            err(BadCmdServerCommand(cmd, words[0]))
+            return
+
+    def cmdproc_cmd(self, cmdproc, words, cmd_callback, err):
         dfa = self._cmdproc_dfa[cmdproc]
         cmd = []
         i = 0
-        self._resume_cmdproc_cmd(cmdproc, cmd_callback, words, i, cmd, dfa)
+        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i, cmd, dfa)
 
         # for i in range(len(words)):
         #     w = words[i]
@@ -360,7 +408,11 @@ class CmdDFA(object):
         # except KeyError:
         #     raise IncompleteCmdProcCommand(cmdproc, cmd) 
 
-    def _resume_cmdproc_cmd(self, cmdproc, cmd_callback, words, i, cmd, dfa):
+    def _resume_cmdproc_cmd(self, cmdproc, cmd_callback, err, words, i, cmd, dfa):
+        """
+        Call cmd_callback with the command  when we're done handling the command, or call err 
+        with and exception if the command is bad.
+        """
         # for i in range(len(words)):
         while i < len(words):
             w = words[i]
@@ -372,12 +424,13 @@ class CmdDFA(object):
                     inputfunc = result[1]
                     def arg_cb(arg):
                         cmd.append(arg)
-                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, words, i + 1, cmd, dfa)
+                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
                     inputfunc(arg_cb)
                     return
                 i += 1
             except KeyError:
-                raise BadCmdProcCommand(cmdproc, cmd, w)
+                err(BadCmdProcCommand(cmdproc, cmd, w))
+                return
         try:
             # process any remaining arguments, or accept
             # i = len(words)
@@ -395,9 +448,11 @@ class CmdDFA(object):
                     inputfunc(arg_cb)
                     return
                 i += 1
-            raise IncompleteCmdProcCommand(cmdproc, cmd) 
         except KeyError:
-            raise IncompleteCmdProcCommand(cmdproc, cmd) 
+            err(IncompleteCmdProcCommand(cmdproc, cmd))
+            return
+        err(IncompleteCmdProcCommand(cmdproc, cmd))
+        return
 
     def _init_dfa(self, cmdproc_cmds):
         """
@@ -488,6 +543,7 @@ class CmdDFA(object):
     def _stop_asking_wrapper(self, callback):
         def stop_asking_wrapper(x):
             self._asking_for_input = False
+            logger.info("STOP ASKING: _asking_for_input == %s, cmd_dfa == %s", self._asking_for_input, self)
             result = callback(x)
             return result
         return stop_asking_wrapper
@@ -495,6 +551,7 @@ class CmdDFA(object):
     def ask_for_string(self, description, callback, candidiates=[]):
         assert not self._asking_for_input
         self._asking_for_input = True
+        logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
         self._string_input_handler.ask_for_string(description, candidiates, self._stop_asking_wrapper(callback))
         # string = raw_input("Give me a {description}: ".format(**locals()))
         # return string

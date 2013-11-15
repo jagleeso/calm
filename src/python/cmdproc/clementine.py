@@ -39,6 +39,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
         self.receive_and_dispatch_loop()
 
     def cmd_play(self, args):
+        logger.info("cmd_play %s", args)
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Play')
         except mydbus.WrappedCalledProcessError as e:

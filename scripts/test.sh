@@ -3,6 +3,10 @@ repl_input="$1"
 sleep_period=1
 shift 1
 
+cd $(dirname $0)
+source ./common.sh
+cd -
+
 read_input() {
     while read line; do
         echo $line
@@ -13,5 +17,4 @@ read_input() {
     done
 }
 
-cd $(dirname $0)/..
-read_input $repl_input | src/cmdserver/replserver src/cmdproc/* "$@" 
+read_input $repl_input | start_cmdserver replserver "$@" 

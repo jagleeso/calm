@@ -10,7 +10,7 @@ start_cmdserver() {
     shift 1
     cd_root
     local cmdprocs=$(find src/python/cmdproc -executable -name '*.py*')
-    src/cmdserver/$cmdserver $cmdprocs "$@"
+    src/python/cmdserver/$cmdserver.py $cmdprocs "$@"
     cd -
 }
 

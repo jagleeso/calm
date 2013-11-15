@@ -93,7 +93,7 @@ class VoiceServer(cmdserver.CmdServer):
         self.start_recording()
 
     def start(self):
-        logger.info("Starting REPL server...")
+        logger.info("Starting Voice server...")
         self.startup_cmdprocs()
         self._cmd_dfa._string_input_handler = AutocompleteGUIInputHandler()
         self.init_gst()
@@ -129,11 +129,14 @@ class VoiceServer(cmdserver.CmdServer):
         """Insert the final result."""
         logger.info("FINAL: hyp == {hyp}, uttid == {uttid}".format(**locals()))
         cmd_words = hyp.split()
-        try:
-            self._cmd_dfa.cmd(cmd_words)
-        except (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
-                cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand) as e:
-            logger.exception(e.message)
+        def empty_cb():
+            pass
+        self.dispatch_cmd_to_cmdproc(cmd_words, empty_cb)
+        # try:
+        #     self._cmd_dfa.cmd(cmd_words)
+        # except (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
+        #         cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand) as e:
+        #     logger.exception(e.message)
 
     # Glue code for passing messages to the handler thread...
 
@@ -159,8 +162,8 @@ class VoiceServer(cmdserver.CmdServer):
         elif msgtype == 'result':
             self.final_result(msg.structure['hyp'], msg.structure['uttid'])
 
-    def dispatch_cmd_to_cmdproc(self, cmd_strs):
-        pass
+    # def dispatch_cmd_to_cmdproc(self, cmd_strs):
+    #     pass
 
 def main():
     parser = argparse.ArgumentParser(description="A voice command server.")
