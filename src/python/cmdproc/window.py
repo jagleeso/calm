@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import cmdproc
 import mydbus
+import procutil
 
 # https://developer.pidgin.im/wiki/DbusHowto
 # provide asynchronous 
@@ -214,6 +215,31 @@ def receive_msg(account, sender, message, conversation, flags):
     # _state_lock.acquire()
     _last_sender.value = sender
     # _state_lock.release()
+
+def get_current_program():
+    """
+    Get the current program name of the active window.
+    """
+    current_window = get_current_window()
+    ws = windows()
+    pid = None
+    for w in ws:
+        if w['hex_code'] == current_window:
+            pid = w['pid']
+    if pid is None:
+        return None
+    program_name = name_from_pid(pid)
+    if program_name is None:
+        return None
+    return program_name.rstrip()
+
+def name_from_pid(pid): 
+    """
+    E.g.
+    ps -p 23827 -o comm= 
+    """
+    name = procutil.call(['ps', '-p', str(pid), '-o', 'comm='])
+    return name
 
 def main():
     parser = argparse.ArgumentParser(description="A window manager command processor.")

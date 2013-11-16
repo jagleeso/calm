@@ -8,7 +8,9 @@ import logging
 import signal
 import traceback
 
-DEFAULT_CMDSERVER_PORT = 2525
+from cmdproc import window
+
+import config
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -209,7 +211,7 @@ def cmdserver_arg_parser(parser=None):
     if parser is None:
         parser = argparse.ArgumentParser(description="A command server.")
     parser.add_argument('cmdproc_paths', nargs='+')
-    parser.add_argument('--port', type=int, default=DEFAULT_CMDSERVER_PORT)
+    parser.add_argument('--port', type=int, default=config.DEFAULT_CMDSERVER_PORT)
     return parser
 
 def cmdserver_main(cmdserver_class, parser=None):
@@ -332,7 +334,7 @@ class CmdDFA(object):
                 self._cmdserver.send_cmd(self._receiving_cmdproc, cmd)
                 self.done_sending()
                 callback()
-            cmd = self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb, err)
+            self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb, err)
             return
 
         def is_cmd(cmd_str):
@@ -372,12 +374,28 @@ class CmdDFA(object):
                 callback()
             self.ask_for_string('the recording to replay', replay_macro_cb, self._cmdserver.macros)
             return
-        else:
+
+        # Try sending the command to the currently active process to see if it can handle it.
+        current_cmdproc = window.get_current_program()
+        if current_cmdproc is None:
+            # Current active process has no command processor; interpret as a bad server command.
             err(BadCmdServerCommand(cmd, words[0]))
             return
 
+        def send_cmd_cb(cmd):
+            self._cmdserver.send_cmd(current_cmdproc, cmd)
+            callback()
+        def cmdproc_and_cmdserver_err(e):
+            err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
+            return
+        cmd = self.cmdproc_cmd(current_cmdproc, words, send_cmd_cb, cmdproc_and_cmdserver_err)
+
     def cmdproc_cmd(self, cmdproc, words, cmd_callback, err):
-        dfa = self._cmdproc_dfa[cmdproc]
+        try:
+            dfa = self._cmdproc_dfa[cmdproc]
+        except KeyError:
+            err(NoSuchCmdProc(cmdproc, words))
+            return
         cmd = []
         i = 0
         self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i, cmd, dfa)
@@ -414,6 +432,7 @@ class CmdDFA(object):
         with and exception if the command is bad.
         """
         # for i in range(len(words)):
+        # import rpdb; rpdb.set_trace()
         while i < len(words):
             w = words[i]
             try:
@@ -570,6 +589,18 @@ class CmdDFA(object):
         # TODO: use system notification
         logger.info(message)
 
+class NeitherCmdProcOrServerCommand(Exception):
+    def __init__(self, cmdproc_exception, cmdserver_exception):
+        indent = "    "
+        message = (
+            "First failed to parse command in command sever, then failed to parse in current command processor:\n" +
+            indent + "Command server attempt:\n" +
+            2*indent + str(cmdserver_exception) + "\n" +
+            indent + "Command processor attempt:\n" +
+            2*indent + str(cmdproc_exception)
+        )
+        Exception.__init__(self, message)
+
 class BadCmdProcCommand(Exception):
     def __init__(self, cmdproc, cmd_so_far, unexpected):
         message = "Failed to run command for {cmdproc}.  Saw {cmd_so_far}, but didn't expect {unexpected}".format(**locals())
@@ -577,6 +608,14 @@ class BadCmdProcCommand(Exception):
         self.cmdproc = cmdproc
         self.cmd_so_far = cmd_so_far
         self.unexpected = unexpected
+
+
+class NoSuchCmdProc(Exception):
+    def __init__(self, cmdproc, words):
+        message = "No command processor exists for the program {cmdproc} (for handling {words})".format(**locals())
+        Exception.__init__(self, message)
+        self.cmdproc = cmdproc
+        self.words = words
 
 class BadCmdServerCommand(Exception):
     def __init__(self, cmd_so_far, unexpected):

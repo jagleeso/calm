@@ -1,5 +1,5 @@
 from message import *
-import cmdserver
+import config
 
 from multiprocessing import Process, Value, Array, Lock, Manager
 import socket 
@@ -247,7 +247,7 @@ def cmdproc_main(cmdproc_class, parser=None):
     if parser is None:
         parser = argparse.ArgumentParser(description="A command processor.")
     parser.add_argument('--server', default="localhost")
-    parser.add_argument('--port', type=int, default=cmdserver.DEFAULT_CMDSERVER_PORT)
+    parser.add_argument('--port', type=int, default=config.DEFAULT_CMDSERVER_PORT)
     args = parser.parse_args()
 
     processor = cmdproc_class(args.server, args.port)

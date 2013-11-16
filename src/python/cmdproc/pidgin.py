@@ -65,7 +65,10 @@ class PidginCmdProc(cmdproc.CmdProc):
 
         last_sender = _last_sender.value
         last_conversation = _last_conversation.value
-        send_im(last_conversation, message[1])
+        if last_sender == '':
+            logger.info("There is no last sender... ignoring REPLY")
+        else:
+            send_im(last_conversation, message[1])
 
         # obj = self.bus.get_object("im.pidgin.purple.PurpleService", "/im/pidgin/purple/PurpleObject")
         # purple = dbus.Interface(obj, "im.pidgin.purple.PurpleInterface")

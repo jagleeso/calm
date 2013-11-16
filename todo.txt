@@ -12,4 +12,12 @@
   - make gui prompts work
   - add autocomplete to them
   - current application context in cmdserver
-  - don't used "SEND" + "DONE"; they keep getting falsely activated
+  - add commands:
+    - pidgin
+      - MESSAGE arg: send message to online user (autocomplete user name)
+    - clementine
+      - TRACK arg: play title track
+  - in pidgin, if last sender is None, ignore command
+  - notifications to user about
+    - current receiving application (from SEND)
+    - failed commands? (it not doing what you told it is good enough?)
