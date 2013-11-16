@@ -11,4 +11,5 @@
 
   - make gui prompts work
   - add autocomplete to them
+  - current application context in cmdserver
 

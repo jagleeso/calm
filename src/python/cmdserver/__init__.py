@@ -444,7 +444,7 @@ class CmdDFA(object):
                     inputfunc = result[1]
                     def arg_cb(arg):
                         cmd.append(arg)
-                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, words, i + 1, cmd, dfa)
+                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
                     inputfunc(arg_cb)
                     return
                 i += 1
