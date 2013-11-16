@@ -59,7 +59,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
 
     def cmd_previous(self, args):
         try:
-            return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Previous')
+            return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Prev')
         except mydbus.WrappedCalledProcessError as e:
             logger.exception("Looks like clementine isn't running...")
 

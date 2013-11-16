@@ -34,7 +34,7 @@ class CmdServer(object):
         'commands': [ 
             [['cmd', 'REPLAY'], ['arg', 'str']],
             [['cmd', 'RECORD'], ['arg', 'str']],
-            [['cmd', 'DONE']],
+            [['cmd', 'FINISH']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
         ],
     }
@@ -111,7 +111,7 @@ class CmdServer(object):
                 for s in self._program_to_socket.values():
                     # Tell processes to stop recording the macro, since some of them might 
                     # be recording.
-                    send_cmd(socket, [['cmd', 'DONE']])
+                    send_cmd(socket, [['cmd', 'FINISH']])
                 self.is_recording = False
                 return False
         self.is_recording = True
@@ -133,7 +133,7 @@ class CmdServer(object):
         """
         if self.is_recording: 
             for socket in self._program_to_socket.values():
-                send_cmd(socket, [['cmd', 'DONE']])
+                send_cmd(socket, [['cmd', 'FINISH']])
         self.is_recording = False
 
     def setup_dispatch_loop(self):
@@ -362,7 +362,7 @@ class CmdDFA(object):
                 callback()
             self.ask_for_string('the name of your recording', start_recording_cb, self._cmdserver.macros)
             return
-        elif is_cmd('DONE'):
+        elif is_cmd('FINISH'):
             self._cmdserver.end_macro()
             callback()
             return

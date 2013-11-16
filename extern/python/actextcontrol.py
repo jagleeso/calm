@@ -126,8 +126,10 @@ class ACTextControl(wx.TextCtrl):
 
             if not self.popup.IsShown():
                 self.popup.Show()
-        
 
+    def hide_popup(self):
+        if self.popup.IsShown():
+            self.popup.Show(False)
                 
     def _on_focus_loss(self, event):
         """Close the popup when focus is lost"""
@@ -198,6 +200,7 @@ class ACTextControl(wx.TextCtrl):
         
         # Escape key closes the popup if it is visible
         if event.GetKeyCode() == wx.WXK_ESCAPE:
+            self.callback(None)
             if visible:
                 self.popup.Show(False)
 

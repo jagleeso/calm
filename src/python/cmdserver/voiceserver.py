@@ -16,22 +16,46 @@ import gst
 import actextcontrol
 import wx
 
-def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_sensitive=False):
+def expanded(widget, padding=0):
+    sizer = wx.BoxSizer(wx.VERTICAL)
+    sizer.Add(widget, 1, wx.EXPAND|wx.ALL, padding)
+    return sizer
+
+# class Panel(wx.Panel):
+#     def __init__(self, parent):
+#         wx.Panel.__init__(self, parent)
+#         self.text = wx.StaticText(self, label='Panel 1')
+
+def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_sensitive=False, description="Enter text"):
     panel = wx.Panel(frm)
     
-    label1 = wx.StaticText(panel, -1, 'Matches anywhere in string')
+    label1 = wx.StaticText(panel, -1, description)
     ctrl1 = actextcontrol.ACTextControl(panel, candidates=[], add_option=False)
 
-    fgsizer = wx.FlexGridSizer(rows=4, cols=2, vgap=20, hgap=10)
-    fgsizer.AddMany([label1, ctrl1])
+    # fgsizer = wx.FlexGridSizer(rows=4, cols=2, vgap=20, hgap=10)
+    # fgsizer.AddMany([label1, ctrl1])
+
     
+    # fgsizer = wx.FlexGridSizer(rows=1, cols=1, vgap=10, hgap=10)
+    # fgsizer.Add(ctrl1)
+
+    # panel.SetAutoLayout(True)
+    # panel.SetSizer(fgsizer)
+    # ctrl1.SetSizer(expanded(panel))
+    # fgsizer.Fit(panel)
+
+
+    box = wx.BoxSizer(wx.HORIZONTAL)
+    box.Add(label1, 1, wx.EXPAND)
+    box.Add(ctrl1, 3, wx.EXPAND)
+
+    panel.SetSizer(box)
+    panel.Layout()
     panel.SetAutoLayout(True)
-    panel.SetSizer(fgsizer)
-    fgsizer.Fit(panel)
 
     ctrl1.SetValue('')
     
-    panel.Layout()
+    # panel.Layout()
 
     return ctrl1
 
@@ -40,7 +64,8 @@ class AutocompleteGUIInputHandler(object):
         self.app = wx.PySimpleApp()
         self.frm = wx.Frame(None, -1, "Test", style=wx.DEFAULT_FRAME_STYLE)
         self.app.SetTopWindow(self.frm)
-        self.frm.SetSize((400, 250))
+        # self.frm.SetSize((400, 100))
+        # self.frm.SetSize((400, 100))
         self.frm.Bind(wx.EVT_CLOSE, self._on_close)
         self.string_fetcher = wx_string_fetcher(self.app, self.frm)
 
@@ -51,15 +76,23 @@ class AutocompleteGUIInputHandler(object):
 
     def ask_for_string(self, description, candidates, callback):
         self.frm.SetTitle(description)
-        self.string_fetcher.candidates = candidates
+        logger.info("candidates == %s", candidates)
+        if candidates is not None and candidates != []:
+            self.string_fetcher.all_candidates = candidates
+        else:
+            self.string_fetcher.all_candidates = [] 
+            self.string_fetcher.hide_popup()
+            logger.info("hide the popup")
+
+        self.string_fetcher.SetValue('')
         def finish_input_wrapper(string):
             self.frm.Hide()
             return callback(string)
         self.string_fetcher.callback = finish_input_wrapper
         self.string_fetcher.SetFocus()
+        self.frm.Center()
         self.frm.Show()
-        # string = raw_input("Give me a {description}: ".format(**locals()))
-        # return string
+        self.frm.ToggleWindowStyle(wx.STAY_ON_TOP)
 
     def main_loop(self):
         self.app.MainLoop()

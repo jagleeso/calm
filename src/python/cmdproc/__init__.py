@@ -97,7 +97,7 @@ class CmdProc(object):
             send(self.socket, 'Ready to record')
             some_arg.value = 1
             return
-        elif cmd[0][1] == 'DONE':
+        elif cmd[0][1] == 'FINISH':
             self.stop_recording()
             return
         elif cmd[0][1] == 'REPLAY':

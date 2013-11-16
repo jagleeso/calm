@@ -41,7 +41,7 @@ class ReplServer(cmdserver.CmdServer):
     #     if cmd_strs[0] == 'RECORD':
     #         name = cmd_strs[1]
     #         self.record_macro(name)
-    #     elif cmd_strs[0] == 'DONE':
+    #     elif cmd_strs[0] == 'FINISH':
     #         self.end_macro()
     #     elif cmd_strs[0] == 'REPLAY':
     #         name = cmd_strs[1]

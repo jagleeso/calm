@@ -12,4 +12,4 @@
   - make gui prompts work
   - add autocomplete to them
   - current application context in cmdserver
-
+  - don't used "SEND" + "DONE"; they keep getting falsely activated
