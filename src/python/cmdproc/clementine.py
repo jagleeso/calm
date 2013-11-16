@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import cmdproc
 import mydbus
+import procutil
 
 # https://developer.pidgin.im/wiki/DbusHowto
 # provide asynchronous 
@@ -21,6 +22,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
             [['cmd', 'VOLUME'], ['arg', 'int', "Volume Level"]],
             [['cmd', 'NEXT']],
             [['cmd', 'PREVIOUS']],
+            [['cmd', 'TRACK'], ['arg', 'str', "Track to Play"]],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
@@ -30,8 +32,26 @@ class ClementineCmdProc(cmdproc.CmdProc):
             ("VOLUME",): self.cmd_volume,
             ("NEXT",): self.cmd_next,
             ("PREVIOUS",): self.cmd_previous,
+            ("TRACK",): self.cmd_track,
         }
         super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
+        self._init_tracklist()
+
+    def get_candidates(self, request):
+        request_args = request[1]
+        if request_args == [['TRACK'], 1]:
+            if self.track_index is None:
+                return []
+            else:
+                return self.track_index.keys()
+
+    def _init_tracklist(self):
+        try:
+            self.track_infos = tracklist_info()
+        except procutil.WrappedCalledProcessError:
+            logger.info("Looks like clementine isn't started yet; delay tracklist initialization until it's started.")
+            self.track_infos = None
+        self.track_index = track_search_index(self.track_infos)
 
     def start(self):
         logger.info("Starting Clementine command processor...")
@@ -69,6 +89,77 @@ class ClementineCmdProc(cmdproc.CmdProc):
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.VolumeSet', [level[1]])
         except mydbus.WrappedCalledProcessError as e:
             logger.exception("Looks like clementine isn't running...")
+
+    def cmd_track(self, args):
+        """
+        e.g.
+        qdbus org.mpris.clementine /TrackList org.freedesktop.MediaPlayer.PlayTrack 0 
+        """
+        cmd, track = args
+        self._init_tracklist()
+        if self.track_infos is None:
+            logger.exception("Looks like clementine isn't running...")
+            return
+        track_number = None
+        try:
+            track_number = self.track_index[track[1]]
+        except KeyError:
+            logger.exception("No such track \"%s\"...", track[1])
+            return
+        try:
+            result = mydbus.send_dbus('org.mpris.clementine', '/TrackList', 'org.freedesktop.MediaPlayer.PlayTrack', [track_number])
+            if self.is_recording():
+                self.put_cmd(args, **{})
+            return result
+        except mydbus.WrappedCalledProcessError as e:
+            logger.exception("Looks like clementine isn't running...")
+
+def track_info(track_number):
+    """
+    e.g.
+    qdbus org.mpris.clementine /TrackList org.freedesktop.MediaPlayer.GetMetadata 122 
+    """
+    info_string = mydbus.send_dbus('org.mpris.clementine', '/TrackList', 'org.freedesktop.MediaPlayer.GetMetadata', [track_number])
+    info_string.rstrip()
+    field_delim = ': '
+    d = {}
+    for line in info_string.splitlines():
+        fields = line.split(field_delim)
+        field_name = fields[0]
+        value = None
+        if len(fields) == 2:
+            value = fields[1]
+        else:
+            value = fields[0] + ''.join(field_delim + e for e in fields[1:len(fields)])
+        d[field_name] = value
+        d['track_number'] = str(track_number)
+    if d == {}:
+        return None
+    return d
+
+def tracklist_info():
+    i = 0
+    tracks = []
+    while True:
+        info = track_info(i)
+        if info is None:
+            break
+        tracks.append(info)
+        i += 1
+    return tracks
+
+def track_search_index(track_infos):
+    """
+    Mapping from (track search string to match against) -> (track number)
+    """
+    index = {}
+    for info in track_infos:
+        s = ''  
+        if 'artist' in info:
+            s = info['artist'] + ' - ' 
+        s = s + info['title']
+        index[s] = info['track_number']
+    return index
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender

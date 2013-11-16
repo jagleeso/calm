@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Mutex over all messenger state.
 # _state_lock = Lock()
-# Who last sent us a message (used as a received for a REPLY command)?
+# Who last sent us a message (used as a received for a RESPOND command)?
 # _last_sender = None
 _last_sender = Array('c', 1024, lock=True)
 _last_conversation = Value('i', lock=True)
@@ -29,13 +29,13 @@ class PidginCmdProc(cmdproc.CmdProc):
     config = {
         'program': 'pidgin',
         'commands': [ 
-            # [['cmd', 'REPLY'], ['arg', ['many', 'str']]],
-            [['cmd', 'REPLY'], ['arg', 'str', "Reply"]],
+            # [['cmd', 'RESPOND'], ['arg', ['many', 'str']]],
+            [['cmd', 'RESPOND'], ['arg', 'str', "Respond"]],
         ],
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
-            ("REPLY",): self.cmd_reply,
+            ("RESPOND",): self.cmd_reply,
         }
         super(PidginCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
 
@@ -48,7 +48,7 @@ class PidginCmdProc(cmdproc.CmdProc):
     def cmd_reply(self, args):
         last_sender = None
         last_sender = _last_sender.value
-        logger.info("Got REPLY command: %s.  Last sender was %s", args, last_sender)
+        logger.info("Got RESPOND command: %s.  Last sender was %s", args, last_sender)
         cmd, message = args
 
         # logger.info("HERE GOES....")
@@ -66,7 +66,7 @@ class PidginCmdProc(cmdproc.CmdProc):
         last_sender = _last_sender.value
         last_conversation = _last_conversation.value
         if last_sender == '':
-            logger.info("There is no last sender... ignoring REPLY")
+            logger.info("There is no last sender... ignoring RESPOND")
         else:
             send_im(last_conversation, message[1])
 

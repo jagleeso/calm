@@ -11,20 +11,65 @@ def serialize_msg(msg):
 def deserialize_msg(msg):
     return json.loads(msg)
 
-def _check_cmd(cmd):
-    assert type(cmd) == list and cmd[0][0] == 'cmd'
-    pass
+def is_cmd(cmd):
+    return type(cmd) == list and cmd[0][0] == 'cmd'
+def is_request(request):
+    return type(request) == list and request[0] == 'request'
+
+def _check_valid_cmd(cmd):
+    """
+    [['cmd', ...], ...]
+    """
+    return is_cmd(cmd)
+
+def _check_valid_request(request):
+    """
+    ['request', (('TRACK'), 1)]  
+    """
+    return is_request(request)
+
+def _check_valid_candidates(candidates):
+    """
+    ['candidates', [list of valid args]]
+    """
+    return type(candidates) == list and candidates[0] == 'candidates' and type(candidates[1]) == list
+
+# cmdserver stuff
 
 def send_cmd(socket, cmd):
-    _check_cmd(cmd)
+    assert _check_valid_cmd(cmd)
     msg = serialize_msg(cmd)
+    return send(socket, msg)
+
+def send_request(socket, request):
+    assert _check_valid_request(request)
+    msg = serialize_msg(request)
+    return send(socket, msg)
+
+def recv_candidates(socket):
+    msg = recv(socket)
+    candidates = deserialize_msg(msg)
+    assert _check_valid_candidates(candidates)
+    return candidates
+
+# cmdproc stuff
+
+def send_candidates(socket, candidates):
+    assert _check_valid_candidates(candidates)
+    msg = serialize_msg(candidates)
     return send(socket, msg)
 
 def recv_cmd(socket):
     msg = recv(socket)
     cmd = deserialize_msg(msg)
-    _check_cmd(cmd)
+    assert _check_valid_cmd(cmd)
     return cmd
+
+def recv_cmd_or_request(socket):
+    msg = recv(socket)
+    cmd_or_request = deserialize_msg(msg)
+    assert _check_valid_cmd(cmd_or_request) or _check_valid_request(cmd_or_request)
+    return cmd_or_request
 
 """
 Use a dumb protocol for sending fixed size messages:

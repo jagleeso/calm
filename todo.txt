@@ -17,6 +17,8 @@
       - MESSAGE arg: send message to online user (autocomplete user name)
     - clementine
       - TRACK arg: play title track
+      - make autocomplete for cmdproc commands
+      - record track commands in macro
   - in pidgin, if last sender is None, ignore command
   - notifications to user about
     - current receiving application (from SEND)

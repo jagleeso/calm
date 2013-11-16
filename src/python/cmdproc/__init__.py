@@ -22,8 +22,6 @@ _macroname = Array('c', 1024, lock=True)
 _macro_cmds = _manager.list()
 _macros = _manager.dict()
 
-
-some_arg = Value('i', False, lock=True)
 class CmdProc(object):
     """
     Send the command server our configuration info, and await commands.
@@ -54,6 +52,11 @@ class CmdProc(object):
         self._macroname = Array('c', 1024, lock=True)
         self._macro_cmds = self._manager.list()
         self._macros = self._manager.dict()
+
+
+    def get_candidates(self, request):
+        # no candidates by default
+        return None
 
     def connect(self):
         """
@@ -88,28 +91,34 @@ class CmdProc(object):
         Dispatch a new thread to handle the next command (don't want to block on newly 
         arriving commands).
         """
-        global some_arg
-        cmd = recv_cmd(self.socket)
-        if cmd[0][1] == 'RECORD':
-            macroname = cmd[1][1]
-            # Time to record a macro; tell the command server we're ready.
-            self.begin_recording(macroname)
-            send(self.socket, 'Ready to record')
-            some_arg.value = 1
-            return
-        elif cmd[0][1] == 'FINISH':
-            self.stop_recording()
-            return
-        elif cmd[0][1] == 'REPLAY':
-            macroname = cmd[1][1]
-            self.replay_macro(macroname)
-            return
-        handler = self.get_cmd_handler(cmd)
-        if handler is None:
-            handler = self.default_handler
-        # logger.info("in cmdproc before starting process _recording == %s", _recording)
-        p = Process(target=handler, args=(cmd,))
-        p.start()
+        cmd_or_request = recv_cmd_or_request(self.socket)
+        if is_request(cmd_or_request):
+            request = cmd_or_request
+            candidates = self.get_candidates(request)
+            logger.info("Send back candidates to cmdserver for request %s: %s", request, candidates)
+            send_candidates(self.socket, ['candidates', candidates])
+        else:
+            assert is_cmd(cmd_or_request)
+            cmd = cmd_or_request
+            if cmd[0][1] == 'RECORD':
+                macroname = cmd[1][1]
+                # Time to record a macro; tell the command server we're ready.
+                self.begin_recording(macroname)
+                send(self.socket, 'Ready to record')
+                return
+            elif cmd[0][1] == 'FINISH':
+                self.stop_recording()
+                return
+            elif cmd[0][1] == 'REPLAY':
+                macroname = cmd[1][1]
+                self.replay_macro(macroname)
+                return
+            handler = self.get_cmd_handler(cmd)
+            if handler is None:
+                handler = self.default_handler
+            # logger.info("in cmdproc before starting process _recording == %s", _recording)
+            p = Process(target=handler, args=(cmd,))
+            p.start()
         # logger.info("in cmdproc after starting process _recording == %s", _recording)
         # p = Process(target=madeup, args=(_recording, some_arg))
         # p.start()
@@ -211,6 +220,8 @@ class CmdProc(object):
         name = self._macroname.value
         cmds = list(self._macro_cmds)
         self._macros[name] = cmds
+
+        self._macro_cmds[:] = []
 
         self._macroname.value = ''
         self._recording.value = False 

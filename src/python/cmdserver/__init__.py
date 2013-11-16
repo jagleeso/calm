@@ -34,8 +34,8 @@ class CmdServer(object):
     config = {
         'program': 'cmdserver',
         'commands': [ 
-            [['cmd', 'REPLAY'], ['arg', 'str']],
-            [['cmd', 'RECORD'], ['arg', 'str']],
+            [['cmd', 'REPLAY'], ['arg', 'str', "Recorded macro name"]],
+            [['cmd', 'RECORD'], ['arg', 'str', "New macro name"]],
             [['cmd', 'FINISH']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
         ],
@@ -55,7 +55,7 @@ class CmdServer(object):
         self._program_to_socket = {}
         self._program_to_pid = {}
 
-        self.macros = []
+        self.macros = set([])
 
         self.is_recording = False
 
@@ -65,6 +65,12 @@ class CmdServer(object):
     def send_cmd(self, program, cmd):
         cmdproc_socket = self._program_to_socket[program]
         send_cmd(cmdproc_socket, cmd)
+
+    def get_candidates(self, program, request):
+        cmdproc_socket = self._program_to_socket[program]
+        send_request(cmdproc_socket, request)
+        candidates = recv_candidates(cmdproc_socket)
+        return candidates
 
     def make_cmdserver_socket(self):
         """
@@ -117,7 +123,7 @@ class CmdServer(object):
                 self.is_recording = False
                 return False
         self.is_recording = True
-        self.macros.append(name)
+        self.macros.add(name)
         return True
 
     def replay_macro(self, name):
@@ -197,7 +203,6 @@ def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     cmd = []
     # def arg():
     # def cmdproc():
-    # def cmd():
     state = 'cmdserver_or_current_cmdproc'
 
 def build_cmd_dfa():
@@ -358,11 +363,12 @@ class CmdDFA(object):
                 self.get_ready_to_send(cmdproc)
                 callback()
             self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
+            return
         elif is_cmd('RECORD'):
             def start_recording_cb(macroname):
                 self._cmdserver.record_macro(macroname)
                 callback()
-            self.ask_for_string('the name of your recording', start_recording_cb, self._cmdserver.macros)
+            self.ask_for_string('the name of your recording', start_recording_cb, list(self._cmdserver.macros))
             return
         elif is_cmd('FINISH'):
             self._cmdserver.end_macro()
@@ -431,8 +437,17 @@ class CmdDFA(object):
         Call cmd_callback with the command  when we're done handling the command, or call err 
         with and exception if the command is bad.
         """
-        # for i in range(len(words)):
-        # import rpdb; rpdb.set_trace()
+        def handle_arg(result, i):
+            def arg_cb(arg):
+                cmd.append(arg)
+                self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
+            inputfunc = result[1]
+            request = ['request', [words[0:i+1], i]]
+            candidates = self._cmdserver.get_candidates(cmdproc, request)
+            if candidates is None:
+                inputfunc(arg_cb)
+            else:
+                inputfunc(arg_cb, candidates[1])
         while i < len(words):
             w = words[i]
             try:
@@ -440,11 +455,7 @@ class CmdDFA(object):
                 if result[0] == 'cmd':
                     cmd.append(result)
                 elif result[0] == 'arg':
-                    inputfunc = result[1]
-                    def arg_cb(arg):
-                        cmd.append(arg)
-                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
-                    inputfunc(arg_cb)
+                    handle_arg(result, i)
                     return
                 i += 1
             except KeyError:
@@ -460,11 +471,7 @@ class CmdDFA(object):
                     return
                     # return cmd
                 elif result[0] == 'arg':
-                    inputfunc = result[1]
-                    def arg_cb(arg):
-                        cmd.append(arg)
-                        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
-                    inputfunc(arg_cb)
+                    handle_arg(result, i)
                     return
                 i += 1
         except KeyError:
@@ -493,7 +500,7 @@ class CmdDFA(object):
                 [['cmd', 'VOLUME'], ['arg', int]],
             ],
             'pidgin': [ 
-                [['cmd', 'REPLY'], ['arg', 'str', 'Message']],
+                [['cmd', 'RESPOND'], ['arg', 'str', 'Message']],
                 [['cmd', 'PAUSE']],
                 [['cmd', 'VOLUME'], ['arg', int]],
             ],
@@ -530,7 +537,7 @@ class CmdDFA(object):
                             cmd_delimeters.append(cmdarg[1])
                             cmdproc_dfa[(tuple(cmd_delimeters), i)] = ['cmd', cmdarg[1]]
                         elif argtype(cmdarg) == 'arg':
-                            # e.g. for pidgin REPLY: ['arg', self.ask_for_string]
+                            # e.g. for pidgin RESPOND: ['arg', self.ask_for_string]
                             # inputfunc = argfunc[cmdarg[1]]
                             description = cmdarg[2]
                             # curry the description and return an arg
@@ -549,12 +556,12 @@ class CmdDFA(object):
         # state = 'cmdserver_or_current_cmdproc'
 
     def wrapped_func(self, func, description):
-        def get_input(arg_cb):
+        def get_input(arg_cb, candidates=[]):
             # TODO: make candidates passable as extra argument to get_input
             def wrapped_arg_cb(user_input):
                 return arg_cb(['arg', user_input])
             # TODO: pass candidates here
-            return func(description, wrapped_arg_cb)
+            return func(description, wrapped_arg_cb, candidates)
         # TODO: add candidates
         return get_input
         # inputfunc_wrapper = lambda: ['arg', inputfunc(description)]
@@ -567,21 +574,21 @@ class CmdDFA(object):
             return result
         return stop_asking_wrapper
 
-    def ask_for_string(self, description, callback, candidiates=[]):
+    def ask_for_string(self, description, callback, candidates=[]):
         assert not self._asking_for_input
         self._asking_for_input = True
         logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
-        self._string_input_handler.ask_for_string(description, candidiates, self._stop_asking_wrapper(callback))
+        self._string_input_handler.ask_for_string(description, candidates, self._stop_asking_wrapper(callback))
         # string = raw_input("Give me a {description}: ".format(**locals()))
         # return string
 
-    def ask_for_int(self, description, callback, candidiates=[]):
+    def ask_for_int(self, description, callback, candidates=[]):
         assert not self._asking_for_input
         self._asking_for_input = True
         def int_callback_wrapper(string):
             integer = int(string)
             return callback(integer)
-        self._string_input_handler.ask_for_string(description, candidiates, self._stop_asking_wrapper(int_callback_wrapper))
+        self._string_input_handler.ask_for_string(description, candidates, self._stop_asking_wrapper(int_callback_wrapper))
         # string = raw_input("Give me a number for {description}: ".format(**locals()))
         # return int(string)
 
@@ -608,7 +615,6 @@ class BadCmdProcCommand(Exception):
         self.cmdproc = cmdproc
         self.cmd_so_far = cmd_so_far
         self.unexpected = unexpected
-
 
 class NoSuchCmdProc(Exception):
     def __init__(self, cmdproc, words):

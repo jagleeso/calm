@@ -34,7 +34,7 @@ class GUIServer(cmdserver.CmdServer):
     #         program = cmd_strs[1]
     #         cmd_name = cmd_strs[2]
     #         # cmd_args = " ".join(cmd_strs[3:])
-    #         if program == 'pidgin' and cmd_name == 'REPLY':
+    #         if program == 'pidgin' and cmd_name == 'RESPOND':
     #             cmd_args = cmd_strs[3:]
     #         elif program == 'clementine' and cmd_name == 'VOLUME':
     #             cmd_args = cmd_strs[3]
