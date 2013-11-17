@@ -21,29 +21,11 @@ def expanded(widget, padding=0):
     sizer.Add(widget, 1, wx.EXPAND|wx.ALL, padding)
     return sizer
 
-# class Panel(wx.Panel):
-#     def __init__(self, parent):
-#         wx.Panel.__init__(self, parent)
-#         self.text = wx.StaticText(self, label='Panel 1')
-
 def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_sensitive=False, description="Enter text"):
     panel = wx.Panel(frm)
     
     label1 = wx.StaticText(panel, -1, description)
     ctrl1 = actextcontrol.ACTextControl(panel, candidates=[], add_option=False)
-
-    # fgsizer = wx.FlexGridSizer(rows=4, cols=2, vgap=20, hgap=10)
-    # fgsizer.AddMany([label1, ctrl1])
-
-    
-    # fgsizer = wx.FlexGridSizer(rows=1, cols=1, vgap=10, hgap=10)
-    # fgsizer.Add(ctrl1)
-
-    # panel.SetAutoLayout(True)
-    # panel.SetSizer(fgsizer)
-    # ctrl1.SetSizer(expanded(panel))
-    # fgsizer.Fit(panel)
-
 
     box = wx.BoxSizer(wx.HORIZONTAL)
     box.Add(label1, 1, wx.EXPAND)
@@ -55,8 +37,6 @@ def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_s
 
     ctrl1.SetValue('')
     
-    # panel.Layout()
-
     return ctrl1
 
 class AutocompleteGUIInputHandler(object):
@@ -102,6 +82,7 @@ class VoiceServer(cmdserver.CmdServer):
         self.ps_lm = ps_lm
         self.ps_dict = ps_dict
         super(VoiceServer, self).__init__(cmdproc_paths, port)
+        self.notifier = notify.GUINotifier()
 
     def init_gst(self):
         """Initialize the speech components"""
@@ -131,15 +112,6 @@ class VoiceServer(cmdserver.CmdServer):
         self._cmd_dfa._string_input_handler = AutocompleteGUIInputHandler()
         self.init_gst()
         self._cmd_dfa._string_input_handler.main_loop()
-        # actextcontrol.test()
-        # gtk.main()
-        # while True:
-        #     try:
-        #         cmd_string = raw_input(">> ")
-        #     except EOFError:
-        #         cmdserver.exit_server()
-        #     cmd = cmd_string.split()
-        #     self.dispatch_cmd_to_cmdproc(cmd)
 
     # Recording functions
 
@@ -165,11 +137,6 @@ class VoiceServer(cmdserver.CmdServer):
         def empty_cb():
             pass
         self.dispatch_cmd_to_cmdproc(cmd_words, empty_cb)
-        # try:
-        #     self._cmd_dfa.cmd(cmd_words)
-        # except (cmdserver.IncompleteCmdProcCommand, cmdserver.BadCmdProcCommand, 
-        #         cmdserver.IncompleteCmdServerCommand, cmdserver.BadCmdServerCommand) as e:
-        #     logger.exception(e.message)
 
     # Glue code for passing messages to the handler thread...
 
@@ -194,9 +161,6 @@ class VoiceServer(cmdserver.CmdServer):
             self.partial_result(msg.structure['hyp'], msg.structure['uttid'])
         elif msgtype == 'result':
             self.final_result(msg.structure['hyp'], msg.structure['uttid'])
-
-    # def dispatch_cmd_to_cmdproc(self, cmd_strs):
-    #     pass
 
 def main():
     parser = argparse.ArgumentParser(description="A voice command server.")

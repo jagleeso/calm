@@ -11,6 +11,7 @@ import traceback
 from cmdproc import window
 
 import config
+import notify
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -61,6 +62,8 @@ class CmdServer(object):
 
         self.is_recording = False
         self.current_macro = None
+
+        self.notifier = notify.GUINotifier()
 
     def start(self):
         raise NotImplementedError
@@ -135,12 +138,16 @@ class CmdServer(object):
         self.is_recording = True
         self.current_macro = name
         self.macros.add(name)
+        self.notifier.notify("Recording macro:", name)
         return True
 
     def replay_macro(self, name):
         """
         Tell the command processors to replay macro.
         """
+        if name not in self.macros:
+            return
+        self.notifier.notify("Replaying macro:", name)
         for s in self._program_to_socket.values():
             # Tell processes to stop recording the macro, since some of them might 
             # be recording.
@@ -156,6 +163,9 @@ class CmdServer(object):
             if self._macro_cmd_receiver == []:
                 # The user recorded an empty macro, ignore it.
                 self.macros.remove(self.current_macro)
+                self.notifier.notify("Nothing recorded for macro:", self.current_macro)
+            else:
+                self.notifier.notify("Finished recording macro:", self.current_macro)
         self.is_recording = False
         self.current_macro = None
         self._macro_cmd_receiver = []
@@ -170,6 +180,9 @@ class CmdServer(object):
 
     def setup_dispatch_loop(self):
         def cmd_string_cb(cmd_string):
+            if cmd_string is None:
+                handle_next_cmd()
+                return
             if cmd_string.lower() in ['quit', 'exit']:
                 cmdserver.exit_server()
             if self._cmd_dfa._asking_for_input:

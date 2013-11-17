@@ -1,5 +1,6 @@
 from message import *
 import config
+import notify
 
 from multiprocessing import Process, Value, Array, Lock, Manager
 import socket 
@@ -53,6 +54,7 @@ class CmdProc(object):
         self._macro_cmds = self._manager.list()
         self._macros = self._manager.dict()
 
+        self.notifier = notify.GUINotifier()
 
     def get_candidates(self, request):
         # no candidates by default
@@ -152,6 +154,7 @@ class CmdProc(object):
         old_cmd = self._macro_cmds[-1]
         del self._macro_cmds[-1]
         self._macrolock.release()
+        self.notifier.notify("Undo last {cmdproc} command:".format(cmdproc=self.config['program']), pretty_cmd(old_cmd[0]))
         logger.info("%s: %s undone.", self.config['program'], old_cmd)
         # TODO: self.notifier.post("%s undone.", old_cmd)
 
@@ -235,7 +238,16 @@ class CmdProc(object):
         self._assert_recording()
         self._macro_cmds.append([args, kwargs])
         logger.info("put_cmd: args = %s, kwargs = %s, _macro_cmds = %s", args, kwargs, list(self._macro_cmds))
+        self.notifier.notify("Recorded command:", pretty_cmd(args))
         self._macrolock.release()
+
+def pretty_cmd(cmd):
+    def cmd_arg_as_str(cmdarg):
+        if cmdarg[0] in ['cmd', 'arg']:
+            return str(cmdarg[1])
+        else:
+            return str(cmdarg)
+    return " ".join(cmd_arg_as_str(c) for c in cmd)
 
 def cmdproc_main(cmdproc_class, parser=None):
     if parser is None:
