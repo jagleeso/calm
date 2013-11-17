@@ -2,6 +2,7 @@
 <s> RECORD </s>
 <s> FINISH </s>
 <s> SEND </s>
+<s> UNDO </s>
 <s> LEFT </s>
 <s> RIGHT </s>
 <s> MAXIMIZE </s>

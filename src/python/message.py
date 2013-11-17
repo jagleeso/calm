@@ -15,6 +15,8 @@ def is_cmd(cmd):
     return type(cmd) == list and cmd[0][0] == 'cmd'
 def is_request(request):
     return type(request) == list and request[0] == 'request'
+def is_response(response):
+    return type(response) == list and response[0] == 'response'
 
 def _check_valid_cmd(cmd):
     """
@@ -27,6 +29,12 @@ def _check_valid_request(request):
     ['request', (('TRACK'), 1)]  
     """
     return is_request(request)
+
+def _check_valid_response(response):
+    """
+    ['response', 'recorded']  
+    """
+    return is_response(response)
 
 def _check_valid_candidates(candidates):
     """
@@ -52,6 +60,12 @@ def recv_candidates(socket):
     assert _check_valid_candidates(candidates)
     return candidates
 
+def recv_response(socket):
+    msg = recv(socket)
+    response = deserialize_msg(msg)
+    assert _check_valid_response(response)
+    return response
+
 # cmdproc stuff
 
 def send_candidates(socket, candidates):
@@ -70,6 +84,11 @@ def recv_cmd_or_request(socket):
     cmd_or_request = deserialize_msg(msg)
     assert _check_valid_cmd(cmd_or_request) or _check_valid_request(cmd_or_request)
     return cmd_or_request
+
+def send_response(socket, response):
+    assert _check_valid_response(response)
+    msg = serialize_msg(response)
+    return send(socket, msg)
 
 """
 Use a dumb protocol for sending fixed size messages:

@@ -38,6 +38,7 @@ class CmdServer(object):
             [['cmd', 'RECORD'], ['arg', 'str', "New macro name"]],
             [['cmd', 'FINISH']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
+            [['cmd', 'UNDO']],
         ],
     }
     """
@@ -56,8 +57,10 @@ class CmdServer(object):
         self._program_to_pid = {}
 
         self.macros = set([])
+        self._macro_cmd_receiver = []
 
         self.is_recording = False
+        self.current_macro = None
 
     def start(self):
         raise NotImplementedError
@@ -65,6 +68,13 @@ class CmdServer(object):
     def send_cmd(self, program, cmd):
         cmdproc_socket = self._program_to_socket[program]
         send_cmd(cmdproc_socket, cmd)
+        if self.is_recording:
+            response = recv_response(cmdproc_socket)
+            if response == ['response', 'recorded']:
+                # The command processor recorded the command; keep track of this for UNDO's
+                self._macro_cmd_receiver.insert(0, program)
+            else:
+                assert response == ['response', 'not recorded']
 
     def get_candidates(self, program, request):
         cmdproc_socket = self._program_to_socket[program]
@@ -123,6 +133,7 @@ class CmdServer(object):
                 self.is_recording = False
                 return False
         self.is_recording = True
+        self.current_macro = name
         self.macros.add(name)
         return True
 
@@ -142,7 +153,20 @@ class CmdServer(object):
         if self.is_recording: 
             for socket in self._program_to_socket.values():
                 send_cmd(socket, [['cmd', 'FINISH']])
+            if self._macro_cmd_receiver == []:
+                # The user recorded an empty macro, ignore it.
+                self.macros.remove(self.current_macro)
         self.is_recording = False
+        self.current_macro = None
+        self._macro_cmd_receiver = []
+
+    def undo_last_cmd(self):
+        assert self.is_recording
+        if self._macro_cmd_receiver == []:
+            return
+        last_receiver = self._macro_cmd_receiver.pop()
+        socket = self._program_to_socket[last_receiver]
+        send_cmd(socket, [['cmd', 'UNDO']])
 
     def setup_dispatch_loop(self):
         def cmd_string_cb(cmd_string):
@@ -156,7 +180,7 @@ class CmdServer(object):
                 self.dispatch_cmd_to_cmdproc(cmd, handle_next_cmd)
                 # handle_next_cmd(cmd_string_cb)
         def handle_next_cmd():
-            logger.info("asking_for_input == %s, cmd_dfa == %s", self._cmd_dfa._asking_for_input, self._cmd_dfa)
+            # logger.info("asking_for_input == %s, cmd_dfa == %s", self._cmd_dfa._asking_for_input, self._cmd_dfa)
             self._cmd_dfa.ask_for_string("command", cmd_string_cb, [c[1] for c in self.config['commands'] if c[0] == 'cmd'])
         handle_next_cmd()
 
@@ -333,7 +357,7 @@ class CmdDFA(object):
                 err(BadCmdServerCommand(cmd, words[i]))
                 return
         # TODO: add try / except and then handle current application in focus
-        logger.info("is sending?? %s", self._is_sending)
+        # logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
             def send_cmd_cb(cmd):
                 self._cmdserver.send_cmd(self._receiving_cmdproc, cmd)
@@ -354,7 +378,7 @@ class CmdDFA(object):
         elif is_cmd('SEND'):
             # TODO: use voice for this
             def get_ready_to_send_cb(cmdproc):
-                logger.info("send to... %s", cmdproc)
+                # logger.info("send to... %s", cmdproc)
                 if cmdproc not in self._cmdserver._cmdproc_config:
                     # self.error("No such program named {cmdproc}".format(**locals()))
                     # raise BadCmdServerCommand(cmd, cmdproc)
@@ -379,6 +403,11 @@ class CmdDFA(object):
                 self._cmdserver.replay_macro(macroname)
                 callback()
             self.ask_for_string('the recording to replay', replay_macro_cb, self._cmdserver.macros)
+            return
+        elif is_cmd('UNDO'):
+            if self._cmdserver.is_recording:
+                self._cmdserver.undo_last_cmd()
+            callback()
             return
 
         # Try sending the command to the currently active process to see if it can handle it.
@@ -569,7 +598,7 @@ class CmdDFA(object):
     def _stop_asking_wrapper(self, callback):
         def stop_asking_wrapper(x):
             self._asking_for_input = False
-            logger.info("STOP ASKING: _asking_for_input == %s, cmd_dfa == %s", self._asking_for_input, self)
+            # logger.info("STOP ASKING: _asking_for_input == %s, cmd_dfa == %s", self._asking_for_input, self)
             result = callback(x)
             return result
         return stop_asking_wrapper
@@ -577,7 +606,7 @@ class CmdDFA(object):
     def ask_for_string(self, description, callback, candidates=[]):
         assert not self._asking_for_input
         self._asking_for_input = True
-        logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
+        # logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
         self._string_input_handler.ask_for_string(description, candidates, self._stop_asking_wrapper(callback))
         # string = raw_input("Give me a {description}: ".format(**locals()))
         # return string

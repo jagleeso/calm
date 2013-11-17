@@ -48,10 +48,11 @@ class ClementineCmdProc(cmdproc.CmdProc):
     def _init_tracklist(self):
         try:
             self.track_infos = tracklist_info()
+            self.track_index = track_search_index(self.track_infos)
         except procutil.WrappedCalledProcessError:
             logger.info("Looks like clementine isn't started yet; delay tracklist initialization until it's started.")
             self.track_infos = None
-        self.track_index = track_search_index(self.track_infos)
+            self.track_index = None
 
     def start(self):
         logger.info("Starting Clementine command processor...")

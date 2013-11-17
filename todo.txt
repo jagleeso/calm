@@ -19,6 +19,14 @@
       - TRACK arg: play title track
       - make autocomplete for cmdproc commands
       - record track commands in macro
+      - add UNDO commmand when recording macros
+        - make cmdproc's respond to UNDO
+      - add notifications:
+        - on macro RECORD
+        - on command recorded 
+        - on command undone 
+        - on macro FINISH
+        - on anything that isn't obvious that it got performed
   - in pidgin, if last sender is None, ignore command
   - notifications to user about
     - current receiving application (from SEND)
