@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import cmdserver
+import notify
+
 import logging
 import argparse
 

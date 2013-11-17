@@ -31,3 +31,9 @@
   - notifications to user about
     - current receiving application (from SEND)
     - failed commands? (it not doing what you told it is good enough?)
+
+cassey
+- voice for program 
+- add "WAKE UP CALM" to start having calm listen (reduce false activation) 
+- "TALK TO <program>" to have multiple commands direct to a program and "END" to stop
+- add "GO TO SLEEP" to stop CALM from listening

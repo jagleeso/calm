@@ -403,7 +403,8 @@ class CmdDFA(object):
             return
         elif is_cmd('RECORD'):
             def start_recording_cb(macroname):
-                self._cmdserver.record_macro(macroname)
+                if macroname is not None:
+                    self._cmdserver.record_macro(macroname)
                 callback()
             self.ask_for_string('the name of your recording', start_recording_cb, list(self._cmdserver.macros))
             return
