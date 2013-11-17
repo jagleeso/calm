@@ -1,5 +1,7 @@
 BOTTOM - Main 
+CALM - Main 
 FINISH - Main 
+GOTO - Main 
 LEFT - Main 
 MAXIMIZE - Main 
 NEXT - Main 
@@ -11,8 +13,10 @@ REPLAY - Main
 RESPOND - Main 
 RIGHT - Main 
 SEND - Main 
+SLEEP - Main 
 TOP - Main 
 TRACK - Main 
 UNDO - Main 
 VOLUME - Main 
+WAKEUP - Main 
 

@@ -1,4 +1,4 @@
-Language model created by QuickLM on Sun Nov 17 04:09:31 EST 2013
+Language model created by QuickLM on Sun Nov 17 13:52:03 EST 2013
 Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
 
 The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
@@ -7,55 +7,63 @@ The code that was used to produce this language model is available in Open Sourc
 Please visit http://www.speech.cs.cmu.edu/tools/ for more information
 
 The (fixed) discount mass is 0.5. The backoffs are computed using the ratio method.
-This model based on a corpus of 19 sentences and 19 words
+This model based on a corpus of 21 sentences and 23 words
 
 \data\
-ngram 1=19
-ngram 2=36
-ngram 3=23
+ngram 1=23
+ngram 2=42
+ngram 3=27
 
 \1-grams:
--0.8076 </s> -0.3010
--0.8076 <s> -0.2103
--1.7853 BOTTOM -0.2791
--2.0864 FINISH -0.2275
--1.6092 LEFT -0.2275
--2.0864 MAXIMIZE -0.2275
--2.0864 NEXT -0.2275
--2.0864 PAUSE -0.2275
--2.0864 PLAY -0.2275
--2.0864 PREVIOUS -0.2275
--2.0864 RECORD -0.2275
--2.0864 REPLAY -0.2275
--2.0864 RESPOND -0.2275
--1.6092 RIGHT -0.2275
--2.0864 SEND -0.2275
--1.7853 TOP -0.2791
--2.0864 TRACK -0.2275
--2.0864 UNDO -0.2275
--2.0864 VOLUME -0.2275
+-0.8177 </s> -0.3010
+-0.8177 <s> -0.2142
+-1.8388 BOTTOM -0.2817
+-2.1399 CALM -0.2293
+-2.1399 FINISH -0.2293
+-2.1399 GOTO -0.2979
+-1.6628 LEFT -0.2293
+-2.1399 MAXIMIZE -0.2293
+-2.1399 NEXT -0.2293
+-2.1399 PAUSE -0.2293
+-2.1399 PLAY -0.2293
+-2.1399 PREVIOUS -0.2293
+-2.1399 RECORD -0.2293
+-2.1399 REPLAY -0.2293
+-2.1399 RESPOND -0.2293
+-1.6628 RIGHT -0.2293
+-2.1399 SEND -0.2293
+-2.1399 SLEEP -0.2293
+-1.8388 TOP -0.2817
+-2.1399 TRACK -0.2293
+-2.1399 UNDO -0.2293
+-2.1399 VOLUME -0.2293
+-2.1399 WAKEUP -0.2979
 
 \2-grams:
--1.2788 <s> BOTTOM 0.0000
--1.5798 <s> FINISH 0.0000
--1.5798 <s> LEFT 0.0000
--1.5798 <s> MAXIMIZE 0.0000
--1.5798 <s> NEXT 0.0000
--1.5798 <s> PAUSE 0.0000
--1.5798 <s> PLAY 0.0000
--1.5798 <s> PREVIOUS 0.0000
--1.5798 <s> RECORD 0.0000
--1.5798 <s> REPLAY 0.0000
--1.5798 <s> RESPOND 0.0000
--1.5798 <s> RIGHT 0.0000
--1.5798 <s> SEND 0.0000
--1.2788 <s> TOP 0.0000
--1.5798 <s> TRACK 0.0000
--1.5798 <s> UNDO 0.0000
--1.5798 <s> VOLUME 0.0000
+-1.3222 <s> BOTTOM 0.0000
+-1.6232 <s> FINISH 0.0000
+-1.6232 <s> GOTO 0.0000
+-1.6232 <s> LEFT 0.0000
+-1.6232 <s> MAXIMIZE 0.0000
+-1.6232 <s> NEXT 0.0000
+-1.6232 <s> PAUSE 0.0000
+-1.6232 <s> PLAY 0.0000
+-1.6232 <s> PREVIOUS 0.0000
+-1.6232 <s> RECORD 0.0000
+-1.6232 <s> REPLAY 0.0000
+-1.6232 <s> RESPOND 0.0000
+-1.6232 <s> RIGHT 0.0000
+-1.6232 <s> SEND 0.0000
+-1.3222 <s> TOP 0.0000
+-1.6232 <s> TRACK 0.0000
+-1.6232 <s> UNDO 0.0000
+-1.6232 <s> VOLUME 0.0000
+-1.6232 <s> WAKEUP 0.0000
 -0.6021 BOTTOM LEFT 0.0000
 -0.6021 BOTTOM RIGHT 0.0000
+-0.3010 CALM </s> -0.3010
 -0.3010 FINISH </s> -0.3010
+-0.3010 GOTO SLEEP 0.0000
 -0.3010 LEFT </s> -0.3010
 -0.3010 MAXIMIZE </s> -0.3010
 -0.3010 NEXT </s> -0.3010
@@ -67,16 +75,19 @@ ngram 3=23
 -0.3010 RESPOND </s> -0.3010
 -0.3010 RIGHT </s> -0.3010
 -0.3010 SEND </s> -0.3010
+-0.3010 SLEEP </s> -0.3010
 -0.6021 TOP LEFT 0.0000
 -0.6021 TOP RIGHT 0.0000
 -0.3010 TRACK </s> -0.3010
 -0.3010 UNDO </s> -0.3010
 -0.3010 VOLUME </s> -0.3010
+-0.3010 WAKEUP CALM 0.0000
 
 \3-grams:
 -0.6021 <s> BOTTOM LEFT
 -0.6021 <s> BOTTOM RIGHT
 -0.3010 <s> FINISH </s>
+-0.3010 <s> GOTO SLEEP
 -0.3010 <s> LEFT </s>
 -0.3010 <s> MAXIMIZE </s>
 -0.3010 <s> NEXT </s>
@@ -93,9 +104,12 @@ ngram 3=23
 -0.3010 <s> TRACK </s>
 -0.3010 <s> UNDO </s>
 -0.3010 <s> VOLUME </s>
+-0.3010 <s> WAKEUP CALM
 -0.3010 BOTTOM LEFT </s>
 -0.3010 BOTTOM RIGHT </s>
+-0.3010 GOTO SLEEP </s>
 -0.3010 TOP LEFT </s>
 -0.3010 TOP RIGHT </s>
+-0.3010 WAKEUP CALM </s>
 
 \end\

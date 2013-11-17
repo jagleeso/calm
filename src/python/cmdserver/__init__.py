@@ -40,6 +40,10 @@ class CmdServer(object):
             [['cmd', 'FINISH']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
             [['cmd', 'UNDO']],
+            [['cmd', 'WAKEUP'], ['cmd', 'CALM']],
+            [['cmd', 'GOTO'], ['cmd', 'SLEEP']],
+            # [['cmd', 'TALK'], ['cmd', 'TO'], ['arg', 'str'], ['cmdproc', 1]],
+            # [['cmd', 'STOP'], ['cmd', 'TALKING']],
         ],
     }
     """
@@ -64,6 +68,16 @@ class CmdServer(object):
         self.current_macro = None
 
         self.notifier = notify.GUINotifier()
+
+        self.listening = False
+
+    def sleep(self):
+        self.listening = False
+        self.notifier.notify("Going to sleep...")
+
+    def wakeup(self):
+        self.listening = True 
+        self.notifier.notify("Ready for commands")
 
     def start(self):
         raise NotImplementedError
@@ -355,9 +369,11 @@ class CmdDFA(object):
 
         When receiving a bad command, an exception will be called as an argument to err.
         """
+
         if self._asking_for_input:
             logger.info("We're asking the user for input, hold off on commands for now...")
             return
+
         cmd = []
         def consume(i, cmd_str):
             if i >= len(words):
@@ -369,6 +385,28 @@ class CmdDFA(object):
                 # TODO: wrong, shouldn't call err here (unless last command tried)
                 err(BadCmdServerCommand(cmd, words[i]))
                 return
+
+        def is_cmd(*cmd_strs):
+            if words[0:len(cmd_strs)] == list(cmd_strs):
+                for cmd_str in cmd_strs:
+                    cmd.append(['cmd', cmd_str])
+                return True
+            return False
+
+        if not self._cmdserver.listening:
+            if is_cmd('WAKEUP', 'CALM'):
+                self._cmdserver.wakeup()
+                callback()
+                return
+            else:
+                # We're ignoring input since we're sleeping
+                callback()
+                return
+        elif is_cmd('GOTO', 'SLEEP'):
+            self._cmdserver.sleep()
+            callback()
+            return
+
         # TODO: add try / except and then handle current application in focus
         # logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
@@ -379,16 +417,10 @@ class CmdDFA(object):
             self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb, err)
             return
 
-        def is_cmd(cmd_str):
-            if words[0] == cmd_str:
-                cmd.append(['cmd', cmd_str])
-                return True
-            return False
-
         if len(words) < 1:
             err(IncompleteCmdServerCommand(cmd))
             return
-        elif is_cmd('SEND'):
+        if is_cmd('SEND'):
             # TODO: use voice for this
             def get_ready_to_send_cb(cmdproc):
                 # logger.info("send to... %s", cmdproc)

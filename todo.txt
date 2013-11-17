@@ -33,7 +33,7 @@
     - failed commands? (it not doing what you told it is good enough?)
 
 cassey
-- voice for program 
+- voice for program names (music, messenger, window)
 - add "WAKE UP CALM" to start having calm listen (reduce false activation) 
 - "TALK TO <program>" to have multiple commands direct to a program and "END" to stop
 - add "GO TO SLEEP" to stop CALM from listening
