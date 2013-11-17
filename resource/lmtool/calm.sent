@@ -1,10 +1,12 @@
 <s> REPLAY </s>
 <s> RECORD </s>
-<s> FINISH </s>
+<s> FINISH MACRO </s>
 <s> SEND </s>
 <s> UNDO </s>
 <s> WAKEUP CALM </s>
-<s> GOTO SLEEP </s>
+<s> SLEEP </s>
+<s> TALK </s>
+<s> FINISH TALKING </s>
 <s> LEFT </s>
 <s> RIGHT </s>
 <s> MAXIMIZE </s>

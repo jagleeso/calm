@@ -37,13 +37,13 @@ class CmdServer(object):
         'commands': [ 
             [['cmd', 'REPLAY'], ['arg', 'str', "Recorded macro name"]],
             [['cmd', 'RECORD'], ['arg', 'str', "New macro name"]],
-            [['cmd', 'FINISH']],
+            [['cmd', 'FINISH'], ['cmd', 'MACRO']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
             [['cmd', 'UNDO']],
             [['cmd', 'WAKEUP'], ['cmd', 'CALM']],
-            [['cmd', 'GOTO'], ['cmd', 'SLEEP']],
-            # [['cmd', 'TALK'], ['cmd', 'TO'], ['arg', 'str'], ['cmdproc', 1]],
-            # [['cmd', 'STOP'], ['cmd', 'TALKING']],
+            [['cmd', 'SLEEP']],
+            [['cmd', 'TALK'], ['arg', 'str'], ['cmdproc', 1]],
+            [['cmd', 'FINISH'], ['cmd', 'TALKING']],
         ],
     }
     """
@@ -70,6 +70,9 @@ class CmdServer(object):
         self.notifier = notify.GUINotifier()
 
         self.listening = False
+
+        self._receiving_cmdproc = None
+        self._prev_receiving_cmdproc = None
 
     def sleep(self):
         self.listening = False
@@ -351,15 +354,31 @@ class CmdDFA(object):
         self._asking_for_input = False
 
         self._is_sending = False
-        self._receiving_cmdproc = None
+        self._talking_to_cmdproc = False
 
     def get_ready_to_send(self, cmdproc):
         self._is_sending = True
-        self._receiving_cmdproc = cmdproc
+        # The previous receiving command proc should only be None if we are not talking to a command 
+        # proc.
+        assert not self._talking_to_cmdproc or self._cmdserver._prev_receiving_cmdproc is None
+        self._cmdserver._prev_receiving_cmdproc = self._cmdserver._receiving_cmdproc
+        self._cmdserver._receiving_cmdproc = cmdproc
 
     def done_sending(self):
         self._is_sending = False
-        self._receiving_cmdproc = None 
+        self._cmdserver._receiving_cmdproc = self._cmdserver._prev_receiving_cmdproc 
+        self._cmdserver._prev_receiving_cmdproc = None
+
+    def get_ready_to_talk(self, cmdproc):
+        self._talking_to_cmdproc = True 
+        assert self._cmdserver._prev_receiving_cmdproc is None
+        self._cmdserver._receiving_cmdproc = cmdproc
+        self._cmdserver.notifier.notify("Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+
+    def done_talking(self, cmdproc):
+        self._talking_to_cmdproc = False
+        self._cmdserver.notifier.notify("Finished talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver._receiving_cmdproc = None 
 
     def cmd(self, words, callback, err):
         """
@@ -402,7 +421,7 @@ class CmdDFA(object):
                 # We're ignoring input since we're sleeping
                 callback()
                 return
-        elif is_cmd('GOTO', 'SLEEP'):
+        elif is_cmd('SLEEP'):
             self._cmdserver.sleep()
             callback()
             return
@@ -411,16 +430,17 @@ class CmdDFA(object):
         # logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
             def send_cmd_cb(cmd):
-                self._cmdserver.send_cmd(self._receiving_cmdproc, cmd)
+                self._cmdserver.send_cmd(self._cmdserver._receiving_cmdproc, cmd)
                 self.done_sending()
                 callback()
-            self.cmdproc_cmd(self._receiving_cmdproc, words, send_cmd_cb, err)
+            self.cmdproc_cmd(self._cmdserver._receiving_cmdproc, words, send_cmd_cb, err)
             return
 
         if len(words) < 1:
             err(IncompleteCmdServerCommand(cmd))
             return
-        if is_cmd('SEND'):
+
+        def ask_for_program(cb):
             # TODO: use voice for this
             def get_ready_to_send_cb(cmdproc):
                 # logger.info("send to... %s", cmdproc)
@@ -429,18 +449,37 @@ class CmdDFA(object):
                     # raise BadCmdServerCommand(cmd, cmdproc)
                     err(BadCmdServerCommand(cmd, cmdproc))
                     return
+                cb(cmdproc)
+            self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
+
+        if is_cmd('TALK'):
+            def talk_to_cb(cmdproc):
+                if self._talking_to_cmdproc:
+                    # We're already talking to a cmdproc; switch to talking to this cmdproc
+                    self.done_talking(self._cmdserver._receiving_cmdproc)
+                self.get_ready_to_talk(cmdproc)
+                callback()
+            ask_for_program(talk_to_cb)
+            return
+        elif is_cmd('FINISH', 'TALKING'):
+            if self._talking_to_cmdproc:
+                self.done_talking(self._cmdserver._receiving_cmdproc)
+            callback()
+            return
+        elif is_cmd('SEND'):
+            def send_cb(cmdproc):
                 self.get_ready_to_send(cmdproc)
                 callback()
-            self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
+            ask_for_program(send_cb)
             return
         elif is_cmd('RECORD'):
             def start_recording_cb(macroname):
                 if macroname is not None:
                     self._cmdserver.record_macro(macroname)
                 callback()
-            self.ask_for_string('the name of your recording', start_recording_cb, list(self._cmdserver.macros))
+            self.ask_for_string('the name of your recording', start_recording_cb, self._cmdserver.macros)
             return
-        elif is_cmd('FINISH'):
+        elif is_cmd('FINISH', 'MACRO'):
             self._cmdserver.end_macro()
             callback()
             return
@@ -456,20 +495,31 @@ class CmdDFA(object):
             callback()
             return
 
+        def send_cmd_to_cmdproc(cmdproc):
+            """
+            Sending a command to a command processor (either the current application, or an application 
+            we're talking to).
+            """
+            def send_cmd_cb(cmd):
+                self._cmdserver.send_cmd(cmdproc, cmd)
+                callback()
+            def cmdproc_and_cmdserver_err(e):
+                err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
+            self.cmdproc_cmd(cmdproc, words, send_cmd_cb, cmdproc_and_cmdserver_err)
+
+        # See if we're talking to a specific command processor
+        if self._talking_to_cmdproc:
+            send_cmd_to_cmdproc(self._cmdserver._receiving_cmdproc)
+            return
+
         # Try sending the command to the currently active process to see if it can handle it.
         current_cmdproc = window.get_current_program()
         if current_cmdproc is None:
             # Current active process has no command processor; interpret as a bad server command.
             err(BadCmdServerCommand(cmd, words[0]))
             return
-
-        def send_cmd_cb(cmd):
-            self._cmdserver.send_cmd(current_cmdproc, cmd)
-            callback()
-        def cmdproc_and_cmdserver_err(e):
-            err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
-            return
-        cmd = self.cmdproc_cmd(current_cmdproc, words, send_cmd_cb, cmdproc_and_cmdserver_err)
+        send_cmd_to_cmdproc(current_cmdproc)
+        return
 
     def cmdproc_cmd(self, cmdproc, words, cmd_callback, err):
         try:
@@ -653,7 +703,7 @@ class CmdDFA(object):
         assert not self._asking_for_input
         self._asking_for_input = True
         # logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
-        self._string_input_handler.ask_for_string(description, candidates, self._stop_asking_wrapper(callback))
+        self._string_input_handler.ask_for_string(description, list(candidates), self._stop_asking_wrapper(callback))
         # string = raw_input("Give me a {description}: ".format(**locals()))
         # return string
 
@@ -663,7 +713,7 @@ class CmdDFA(object):
         def int_callback_wrapper(string):
             integer = int(string)
             return callback(integer)
-        self._string_input_handler.ask_for_string(description, candidates, self._stop_asking_wrapper(int_callback_wrapper))
+        self._string_input_handler.ask_for_string(description, list(candidates), self._stop_asking_wrapper(int_callback_wrapper))
         # string = raw_input("Give me a number for {description}: ".format(**locals()))
         # return int(string)
 

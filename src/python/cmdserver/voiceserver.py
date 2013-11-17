@@ -112,7 +112,9 @@ class VoiceServer(cmdserver.CmdServer):
         logger.info("Starting Voice server...")
         self.startup_cmdprocs()
         self._cmd_dfa._string_input_handler = AutocompleteGUIInputHandler()
+        logger.info("Initializing the pocketsphinx voice server...")
         self.init_gst()
+        logger.info("Starting the main loop...")
         self._cmd_dfa._string_input_handler.main_loop()
 
     # Recording functions

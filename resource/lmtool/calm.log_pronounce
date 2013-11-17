@@ -1,8 +1,8 @@
 BOTTOM - Main 
 CALM - Main 
 FINISH - Main 
-GOTO - Main 
 LEFT - Main 
+MACRO - Main 
 MAXIMIZE - Main 
 NEXT - Main 
 PAUSE - Main 
@@ -14,6 +14,8 @@ RESPOND - Main
 RIGHT - Main 
 SEND - Main 
 SLEEP - Main 
+TALK - Main 
+TALKING - Main 
 TOP - Main 
 TRACK - Main 
 UNDO - Main 
