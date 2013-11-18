@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class GUIServer(cmdserver.CmdServer):
     def __init__(self, cmdproc_paths, port):
         super(GUIServer, self).__init__(cmdproc_paths, port)
+        self.listening = True
         self.notifier = notify.GUINotifier()
 
     def start(self):

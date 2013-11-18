@@ -14,7 +14,7 @@
   - current application context in cmdserver
   - add commands:
     - pidgin
-      - MESSAGE arg: send message to online user (autocomplete user name)
+      - MESSAGE arg: send message to online user (autocomplete user name), or currently active conversation, whatever's easiest
     - clementine
       - TRACK arg: play title track
       - make autocomplete for cmdproc commands

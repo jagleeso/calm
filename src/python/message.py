@@ -40,7 +40,8 @@ def _check_valid_candidates(candidates):
     """
     ['candidates', [list of valid args]]
     """
-    return type(candidates) == list and candidates[0] == 'candidates' and type(candidates[1]) == list
+    return type(candidates) == list and candidates[0] == 'candidates' and (
+            candidates[1] is None or type(candidates[1]) == list)
 
 # cmdserver stuff
 

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ReplServer(cmdserver.CmdServer):
     def __init__(self, cmdproc_paths, port):
         super(ReplServer, self).__init__(cmdproc_paths, port)
+        self.listening = True
 
     def start(self):
         logger.info("Starting REPL server...")

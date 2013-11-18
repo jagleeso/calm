@@ -23,6 +23,8 @@ class TerminalInputHandler(object):
         pass
 
     def ask_for_string(self, description, candidates, callback):
+        if candidates is None:
+            candidates = []
         candidates_str = ", ".join(candidates)
         help_str = "" if candidates == [] else " (one of: {candidates_str})".format(**locals())
         def get_a_string():
@@ -703,7 +705,7 @@ class CmdDFA(object):
         assert not self._asking_for_input
         self._asking_for_input = True
         # logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
-        self._string_input_handler.ask_for_string(description, list(candidates), self._stop_asking_wrapper(callback))
+        self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(callback))
         # string = raw_input("Give me a {description}: ".format(**locals()))
         # return string
 
@@ -713,7 +715,7 @@ class CmdDFA(object):
         def int_callback_wrapper(string):
             integer = int(string)
             return callback(integer)
-        self._string_input_handler.ask_for_string(description, list(candidates), self._stop_asking_wrapper(int_callback_wrapper))
+        self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(int_callback_wrapper))
         # string = raw_input("Give me a number for {description}: ".format(**locals()))
         # return int(string)
 
