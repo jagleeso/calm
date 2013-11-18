@@ -10,8 +10,8 @@
 <s> LEFT </s>
 <s> RIGHT </s>
 <s> MAXIMIZE </s>
-<s> TOP LEFT </s>
-<s> TOP RIGHT </s>
+<s> UPPER LEFT </s>
+<s> UPPER RIGHT </s>
 <s> BOTTOM LEFT </s>
 <s> BOTTOM RIGHT </s>
 <s> MESSAGE </s>

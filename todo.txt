@@ -37,3 +37,6 @@ cassey
 - voice for program names (music, messenger, window)
 - "TALK TO <program>" to have multiple commands direct to a program and "END" to stop
 - add "GO TO SLEEP" to stop CALM from listening
+
+- Use a word other than "TALK" to start talking to a program (keeps getting mixed up with TOP).
+  - or just hack it...yeah!

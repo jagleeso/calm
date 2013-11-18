@@ -1,4 +1,4 @@
-Language model created by QuickLM on Sun Nov 17 22:28:55 EST 2013
+Language model created by QuickLM on Sun Nov 17 22:46:56 EST 2013
 Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
 
 The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
@@ -36,9 +36,9 @@ ngram 3=31
 -2.1987 SLEEP -0.2295
 -2.1987 TALK -0.2295
 -2.1987 TALKING -0.2295
--1.8976 TOP -0.2842
 -2.1987 TRACK -0.2295
 -2.1987 UNDO -0.2295
+-1.8976 UPPER -0.2842
 -2.1987 VOLUME -0.2295
 -2.1987 WAKEUP -0.2983
 
@@ -59,9 +59,9 @@ ngram 3=31
 -1.6812 <s> SEND 0.0000
 -1.6812 <s> SLEEP 0.0000
 -1.6812 <s> TALK 0.0000
--1.3802 <s> TOP 0.0000
 -1.6812 <s> TRACK 0.0000
 -1.6812 <s> UNDO 0.0000
+-1.3802 <s> UPPER 0.0000
 -1.6812 <s> VOLUME 0.0000
 -1.6812 <s> WAKEUP 0.0000
 -0.6021 BOTTOM LEFT 0.0000
@@ -85,10 +85,10 @@ ngram 3=31
 -0.3010 SLEEP </s> -0.3010
 -0.3010 TALK </s> -0.3010
 -0.3010 TALKING </s> -0.3010
--0.6021 TOP LEFT 0.0000
--0.6021 TOP RIGHT 0.0000
 -0.3010 TRACK </s> -0.3010
 -0.3010 UNDO </s> -0.3010
+-0.6021 UPPER LEFT 0.0000
+-0.6021 UPPER RIGHT 0.0000
 -0.3010 VOLUME </s> -0.3010
 -0.3010 WAKEUP CALM 0.0000
 
@@ -111,18 +111,18 @@ ngram 3=31
 -0.3010 <s> SEND </s>
 -0.3010 <s> SLEEP </s>
 -0.3010 <s> TALK </s>
--0.6021 <s> TOP LEFT
--0.6021 <s> TOP RIGHT
 -0.3010 <s> TRACK </s>
 -0.3010 <s> UNDO </s>
+-0.6021 <s> UPPER LEFT
+-0.6021 <s> UPPER RIGHT
 -0.3010 <s> VOLUME </s>
 -0.3010 <s> WAKEUP CALM
 -0.3010 BOTTOM LEFT </s>
 -0.3010 BOTTOM RIGHT </s>
 -0.3010 FINISH MACRO </s>
 -0.3010 FINISH TALKING </s>
--0.3010 TOP LEFT </s>
--0.3010 TOP RIGHT </s>
+-0.3010 UPPER LEFT </s>
+-0.3010 UPPER RIGHT </s>
 -0.3010 WAKEUP CALM </s>
 
 \end\

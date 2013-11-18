@@ -22,8 +22,8 @@ class WindowCmdProc(cmdproc.CmdProc):
             [['cmd', 'LEFT']],
             [['cmd', 'RIGHT']],
             [['cmd', 'MAXIMIZE']],
-            [['cmd', 'TOP'], ['cmd', 'LEFT']],
-            [['cmd', 'TOP'], ['cmd', 'RIGHT']],
+            [['cmd', 'UPPER'], ['cmd', 'LEFT']],
+            [['cmd', 'UPPER'], ['cmd', 'RIGHT']],
             [['cmd', 'BOTTOM'], ['cmd', 'LEFT']],
             [['cmd', 'BOTTOM'], ['cmd', 'RIGHT']],
         ],
@@ -33,8 +33,8 @@ class WindowCmdProc(cmdproc.CmdProc):
             ('LEFT',): self.cmd_left,
             ('RIGHT',): self.cmd_right,
             ('MAXIMIZE',): self.cmd_maximize,
-            ('TOP', 'LEFT'): self.cmd_top_left,
-            ('TOP', 'RIGHT'): self.cmd_top_right,
+            ('UPPER', 'LEFT'): self.cmd_upper_left,
+            ('UPPER', 'RIGHT'): self.cmd_upper_right,
             ('BOTTOM', 'LEFT'): self.cmd_bottom_left,
             ('BOTTOM', 'RIGHT'): self.cmd_bottom_right,
         }
@@ -84,7 +84,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
-    def cmd_top_left(self, args, **kwargs):
+    def cmd_upper_left(self, args, **kwargs):
         # import rpdb; rpdb.set_trace()
         # logger.info("in window... recording == %s", self._recording.value);
         # self.log_recording()
@@ -99,7 +99,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
-    def cmd_top_right(self, args, **kwargs):
+    def cmd_upper_right(self, args, **kwargs):
         if 'window' not in kwargs:
             kwargs['window'] = get_current_window()
         if not self.macro_check(kwargs['window'], args, kwargs):

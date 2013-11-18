@@ -533,32 +533,6 @@ class CmdDFA(object):
         i = 0
         self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i, cmd, dfa)
 
-        # for i in range(len(words)):
-        #     w = words[i]
-        #     try:
-        #         result = dfa[(tuple(words[0:i+1]), i)]
-        #         if result[0] == 'cmd':
-        #             cmd.append(result)
-        #         elif result[0] == 'arg':
-        #             inputfunc = result[1]
-        #             cmd.append(inputfunc())
-        #     except KeyError:
-        #         raise BadCmdProcCommand(cmdproc, cmd, w)
-        # try:
-        #     # process any remaining arguments, or accept
-        #     i = len(words)
-        #     while True:
-        #         result = dfa[(tuple(words), i)]
-        #         if result == 'accept':
-        #             return cmd
-        #         elif result[0] == 'arg':
-        #             inputfunc = result[1]
-        #             cmd.append(inputfunc())
-        #         i += 1
-        #     raise IncompleteCmdProcCommand(cmdproc, cmd) 
-        # except KeyError:
-        #     raise IncompleteCmdProcCommand(cmdproc, cmd) 
-
     def _resume_cmdproc_cmd(self, cmdproc, cmd_callback, err, words, i, cmd, dfa):
         """
         Call cmd_callback with the command  when we're done handling the command, or call err 
@@ -590,7 +564,6 @@ class CmdDFA(object):
                 return
         try:
             # process any remaining arguments, or accept
-            # i = len(words)
             while True:
                 result = dfa[(tuple(words), i)]
                 if result == 'accept':
@@ -640,10 +613,6 @@ class CmdDFA(object):
         """
         def argtype(cmdarg):
             return cmdarg[0]
-        # argfunc = {
-        #         'str': 'STR', #self.ask_for_string,
-        #         'int': 'INT', #self.ask_for_int,
-        #         }
         argfunc = {
                 'str': self.ask_for_string,
                 'int': self.ask_for_int,
@@ -675,28 +644,17 @@ class CmdDFA(object):
                             raise NotImplementedError("Unknown cmdarg {cmdarg}".format(**locals()))
                 cmdproc_dfa[(tuple(cmd_delimeters), len(cmdproc_cmd))] = 'accept'
             self._cmdproc_dfa[cmdproc] = cmdproc_dfa
-        # Store the results of each transition
-        # cmd = []
-        # def arg():
-        # def cmdproc():
-        # def cmd():
-        # state = 'cmdserver_or_current_cmdproc'
 
     def wrapped_func(self, func, description):
         def get_input(arg_cb, candidates=[]):
-            # TODO: make candidates passable as extra argument to get_input
             def wrapped_arg_cb(user_input):
                 return arg_cb(['arg', user_input])
-            # TODO: pass candidates here
             return func(description, wrapped_arg_cb, candidates)
-        # TODO: add candidates
         return get_input
-        # inputfunc_wrapper = lambda: ['arg', inputfunc(description)]
 
     def _stop_asking_wrapper(self, callback):
         def stop_asking_wrapper(x):
             self._asking_for_input = False
-            # logger.info("STOP ASKING: _asking_for_input == %s, cmd_dfa == %s", self._asking_for_input, self)
             result = callback(x)
             return result
         return stop_asking_wrapper
@@ -704,10 +662,7 @@ class CmdDFA(object):
     def ask_for_string(self, description, callback, candidates=[]):
         assert not self._asking_for_input
         self._asking_for_input = True
-        # logger.info("START ASKING: _asking_for_input = %s", self._asking_for_input)
         self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(callback))
-        # string = raw_input("Give me a {description}: ".format(**locals()))
-        # return string
 
     def ask_for_int(self, description, callback, candidates=[]):
         assert not self._asking_for_input
@@ -716,12 +671,6 @@ class CmdDFA(object):
             integer = int(string)
             return callback(integer)
         self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(int_callback_wrapper))
-        # string = raw_input("Give me a number for {description}: ".format(**locals()))
-        # return int(string)
-
-    def error(self, message):
-        # TODO: use system notification
-        logger.info(message)
 
 class NeitherCmdProcOrServerCommand(Exception):
     def __init__(self, cmdproc_exception, cmdserver_exception):
