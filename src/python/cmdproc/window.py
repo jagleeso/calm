@@ -15,6 +15,12 @@ import logging
 import logconfig
 logger = logging.getLogger(__name__)
 
+# Ubuntu specific hack
+# HEADER_HEIGHT = 20
+# WINDOWBAR_HEIGHT = 20
+HEADER_HEIGHT = 76
+# WINDOWBAR_HEIGHT = 50
+
 class WindowCmdProc(cmdproc.CmdProc):
     config = {
         'program': 'window',
@@ -40,6 +46,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         }
         super(WindowCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
         self.screen_width, self.screen_height = get_resolution()
+        logger.info("screen resolution: width = %s, height = %s", self.screen_width, self.screen_height)
 
     def start(self):
         logger.info("Starting Window Manager command processor...")
@@ -56,6 +63,12 @@ class WindowCmdProc(cmdproc.CmdProc):
             # self.put_cmd(lambda: cmd_func(args, window=window))
             self.put_cmd(args, **kwargs)
         return True
+
+    def corner_height(self):
+        return self.screen_height//2 - HEADER_HEIGHT//2
+
+    def bottom_y(self):
+        return self.screen_height//2 + HEADER_HEIGHT//2
 
     def cmd_left(self, args, **kwargs):
         # import rpdb; rpdb.set_trace()
@@ -80,7 +93,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         x = self.screen_width // 2
         y = 0
         width = self.screen_width // 2
-        height = self.screen_height
+        height = self.screen_height - HEADER_HEIGHT//2
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
@@ -95,7 +108,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         x = 0
         y = 0
         width = self.screen_width // 2
-        height = self.screen_height // 2
+        height = self.corner_height()
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
@@ -107,7 +120,7 @@ class WindowCmdProc(cmdproc.CmdProc):
         x = self.screen_width // 2
         y = 0
         width = self.screen_width // 2
-        height = self.screen_height // 2
+        height = self.corner_height()
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
@@ -120,9 +133,10 @@ class WindowCmdProc(cmdproc.CmdProc):
         if not self.macro_check(kwargs['window'], args, kwargs):
             return
         x = 0
-        y = self.screen_height // 2
+        # y = self.screen_height // 2
+        y = self.bottom_y()
         width = self.screen_width // 2
-        height = self.screen_height // 2
+        height = self.corner_height()
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
@@ -132,11 +146,10 @@ class WindowCmdProc(cmdproc.CmdProc):
         if not self.macro_check(kwargs['window'], args, kwargs):
             return
         x = self.screen_width // 2
-        y = self.screen_height // 2
+        # y = self.screen_height // 2
+        y = self.bottom_y()
         width = self.screen_width // 2
-        height = self.screen_height // 2
-        width = self.screen_width // 2
-        height = self.screen_height // 2
+        height = self.corner_height()
         move_window(kwargs['window'], x, y, width, height)
         focus_window(kwargs['window'])
 
@@ -155,7 +168,9 @@ class WindowCmdProc(cmdproc.CmdProc):
 def get_resolution():
     # for some reason we need to assign it to a variable for this to work...
     app = wx.App(False)
-    return wx.GetDisplaySize()
+    width, height = wx.GetDisplaySize()
+    # return (width, height - HEADER_HEIGHT - WINDOWBAR_HEIGHT)
+    return (width, height)
 
 def get_current_window():
     """
@@ -232,6 +247,20 @@ def get_current_program():
     if program_name is None:
         return None
     return program_name.rstrip()
+
+def raise_window(hex_code):
+    try:
+        procutil.call(['wmctrl', '-i', '-a', hex_code])
+        return True
+    except procutil.WrappedCalledProcessError:
+        logger.exception("Couldn't raise the input window...")
+        return False
+    # if windowid == ":ACTIVE:":
+    #     command = "wmctrl -a :ACTIVE: "
+    # else:
+    #     command - "wmctrl -i -a " + windowid
+    # 
+    # os.system(command)
 
 def name_from_pid(pid): 
     """

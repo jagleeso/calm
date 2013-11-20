@@ -137,6 +137,10 @@ class CmdProc(object):
                     send_response(self.socket, ['response', 'not recorded'])
             else:
                 # logger.info("in cmdproc before starting process _recording == %s", _recording)
+                # def notifier_wrapper():
+                #     self.notifier = notify.GUINotifier()
+                #     handler(cmd)
+                # p = Process(target=notifier_wrapper)
                 p = Process(target=handler, args=(cmd,))
                 p.start()
         # logger.info("in cmdproc after starting process _recording == %s", _recording)

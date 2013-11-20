@@ -10,6 +10,8 @@ import argparse
 
 import logging
 
+from multiprocessing import Process, Value, Array, Lock, Manager
+
 import logconfig
 logger = logging.getLogger(__name__)
 
@@ -35,24 +37,34 @@ class ClementineCmdProc(cmdproc.CmdProc):
             ("TRACK",): self.cmd_track,
         }
         super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
+
+        self._tracklock = Lock()
+        self.track_infos = self._manager.list()
+        self.track_index = self._manager.dict()
+
         self._init_tracklist()
 
     def get_candidates(self, request):
         request_args = request[1]
         if request_args == [['TRACK'], 1]:
-            if self.track_index is None:
+            self._init_tracklist()
+            if len(self.track_index) == 0:
                 return []
             else:
                 return self.track_index.keys()
 
     def _init_tracklist(self):
+        self._tracklock.acquire()
+        if len(self.track_infos) > 0:
+            self._tracklock.release()
+            return
         try:
-            self.track_infos = tracklist_info()
-            self.track_index = track_search_index(self.track_infos)
+            tracklist_info(self.track_infos)
+            track_search_index(self.track_infos, self.track_index)
         except procutil.WrappedCalledProcessError:
             logger.info("Looks like clementine isn't started yet; delay tracklist initialization until it's started.")
-            self.track_infos = None
-            self.track_index = None
+        finally:
+            self._tracklock.release()
 
     def start(self):
         logger.info("Starting Clementine command processor...")
@@ -87,7 +99,10 @@ class ClementineCmdProc(cmdproc.CmdProc):
     def cmd_volume(self, args):
         cmd, level = args
         try:
-            return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.VolumeSet', [level[1]])
+            result = mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.VolumeSet', [level[1]])
+            if self.is_recording():
+                self.put_cmd(args, **{})
+            return result
         except mydbus.WrappedCalledProcessError as e:
             logger.exception("Looks like clementine isn't running...")
 
@@ -98,7 +113,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
         """
         cmd, track = args
         self._init_tracklist()
-        if self.track_infos is None:
+        if len(self.track_infos) == 0:
             logger.exception("Looks like clementine isn't running...")
             return
         track_number = None
@@ -138,9 +153,10 @@ def track_info(track_number):
         return None
     return d
 
-def tracklist_info():
+def tracklist_info(tracks=None):
+    if tracks is None:
+        tracks = []
     i = 0
-    tracks = []
     while True:
         info = track_info(i)
         if info is None:
@@ -149,11 +165,12 @@ def tracklist_info():
         i += 1
     return tracks
 
-def track_search_index(track_infos):
+def track_search_index(track_infos, index=None):
     """
     Mapping from (track search string to match against) -> (track number)
     """
-    index = {}
+    if index is None:
+        index = {}
     for info in track_infos:
         s = ''  
         if 'artist' in info:

@@ -7,8 +7,7 @@ import logging
 import logconfig
 logger = logging.getLogger(__name__)
 
-class WrappedCalledProcessError(Exception):
-    pass
+from procutil import WrappedCalledProcessError
 
 def send_dbus(service, path, method, args=[], qdbus_args=[]):
     """

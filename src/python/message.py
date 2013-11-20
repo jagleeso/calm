@@ -1,6 +1,7 @@
 import json
 import struct
 import logging
+from StringIO import StringIO
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -111,7 +112,15 @@ def send(socket, msg):
 def recv(socket):
     packed = socket.recv(MSG_SIZE_BYTES)
     length = struct.unpack("I", packed)[0]
-    msg = socket.recv(length)
+
+    buf = StringIO()
+    l = 0
+    while l != length:
+        s = socket.recv(length)
+        l += len(s)
+        buf.write(s)
+
+    msg = buf.getvalue()
     logger.info("RECV %s: %s", length, msg)
     return msg
 

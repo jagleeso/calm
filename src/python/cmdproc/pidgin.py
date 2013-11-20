@@ -11,6 +11,7 @@ import argparse
 from dbus.mainloop.glib import DBusGMainLoop
 import logging
 import subprocess
+import notify
 
 from multiprocessing import Process, Lock, Array, Value
 from threading import Thread
@@ -49,6 +50,8 @@ class PidginCmdProc(cmdproc.CmdProc):
         request_args = request[1]
         if request_args == [['MESSAGE'], 1]:
             self._init_conversation_index()
+            if self.conversation_index is None:
+                return None
             return sorted(self.conversation_index.keys())
 
     def start(self):
@@ -66,15 +69,19 @@ class PidginCmdProc(cmdproc.CmdProc):
         last_sender = _last_sender.value
         last_conversation = _last_conversation.value
         if last_sender == '':
-            logger.info("There is no last sender... ignoring RESPOND")
+            logger.info("There is no last sender... ignoring RESPOND and notifying")
+            notify.notify_send("Message not received:", "no one to reply to")
         else:
             send_im(last_conversation, message[1])
 
     def cmd_message(self, args):
         self._init_conversation_index()
         cmd, receiver, message = args
-        if receiver[1] not in self.conversation_index:
-            self.notifier.notify("Message not delivered since conversation doesn't exist:", receiver[1])
+        if message[1] is None:
+            notify.notify_send("Message not delivered since message was empty")
+            return
+        if self.conversation_index is None or receiver[1] not in self.conversation_index:
+            notify.notify_send("Message not delivered since conversation doesn't exist:", receiver[1])
             return
         convo_id = self.conversation_index[receiver[1]]
         send_im(convo_id, message[1])
@@ -128,7 +135,10 @@ def send_im(conversation, message):
 
 def conversation_index():
     d = {}
-    for convo_id in get_active_convo_ids():
+    active_convo_ids = get_active_convo_ids()
+    if active_convo_ids is None:
+        return None
+    for convo_id in active_convo_ids:
         account_username = get_account_username(convo_id)
         receiver_username = get_conversation_title(convo_id)
         if account_username is None or receiver_username is None:

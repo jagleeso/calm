@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import cmdserver
+from cmdproc import window
 import notify
 
 import logging
 import argparse
+import os
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -44,19 +46,41 @@ def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_s
 class AutocompleteGUIInputHandler(object):
     def __init__(self):
         self.app = wx.PySimpleApp()
-        self.frm = wx.Frame(None, -1, "Test", style=wx.DEFAULT_FRAME_STYLE)
+        # import rpdb; rpdb.set_trace()
+        self._init_frm()
+        # self.timer = 
+        self.TIMER_ID = 100  # pick a number
+        self.timer = wx.Timer(self.frm, self.TIMER_ID)  # message will be sent to the panel
+        # timer.Start(100)  # x100 milliseconds
+        wx.EVT_TIMER(self.frm, self.TIMER_ID, self._raise)  # call the on_timer function
+
+    def _init_frm(self):
+        # self.frm = wx.Frame(None, -1, "Test", style=wx.DEFAULT_FRAME_STYLE)
+        self.frm = wx.Frame(None, -1, "Test", style=wx.STAY_ON_TOP | wx.DEFAULT_FRAME_STYLE)
         self.app.SetTopWindow(self.frm)
         # self.frm.SetSize((400, 100))
         # self.frm.SetSize((400, 100))
         self.frm.Bind(wx.EVT_CLOSE, self._on_close)
         self.string_fetcher = wx_string_fetcher(self.app, self.frm)
+        self.has_been_shown = False
+        self.hex_code = None 
+        self.frm.Bind(wx.EVT_SHOW, self._raise)
 
     def _on_close(self, event):
         assert self.string_fetcher.callback is not None
         self.frm.Hide()
+        self.timer.Stop()
         self.string_fetcher.callback(None)
+        # self.frm.Destroy()
+
+    def _hide_frm(self):
+        self.frm.Hide()
+        # self.frm.Destroy()
+        # self.frm = None
+        # self.string_fetcher = None
 
     def ask_for_string(self, description, candidates, callback):
+        # self._init_frm()
         self.frm.SetTitle(description)
         logger.info("candidates == %s", candidates)
         if candidates is not None and candidates != []:
@@ -68,13 +92,54 @@ class AutocompleteGUIInputHandler(object):
 
         self.string_fetcher.SetValue('')
         def finish_input_wrapper(string):
-            self.frm.Hide()
+            if not self.has_been_shown:
+                # Get our window identifier
+                self.pid = os.getpid()
+                self.windows = window.windows()
+                for w in self.windows:
+                    if w['pid'] == self.pid:
+                        assert self.hex_code is None
+                        self.hex_code = w['hex_code']
+                assert self.hex_code is not None
+                self.has_been_shown = True
+            self._hide_frm()
             return callback(string)
         self.string_fetcher.callback = finish_input_wrapper
-        self.string_fetcher.SetFocus()
         self.frm.Center()
+        self.frm.Iconize(False)
+        self.frm.Raise()
         self.frm.Show()
-        self.frm.ToggleWindowStyle(wx.STAY_ON_TOP)
+        self.frm.SetFocus()
+        self.app.SetTopWindow(self.frm)
+        self.string_fetcher.SetFocus()
+
+        def on_timer(event):
+            pass  # do whatever
+
+        # TIMER_ID = 100  # pick a number
+        # timer = wx.Timer(panel, TIMER_ID)  # message will be sent to the panel
+        self.timer.Start(100)  # x100 milliseconds
+        # wx.EVT_TIMER(panel, TIMER_ID, on_timer)  # call the on_timer function
+
+        # self.app.SetFocus()
+        # self.app.Raise()
+        # self.frm.ToggleWindowStyle(wx.STAY_ON_TOP)
+
+    def _raise(self, event):
+        logger.info("raise?")
+        if self.hex_code is not None:
+            ws = window.windows()
+            c = None
+            for w in ws:
+                if w['pid'] == self.pid:
+                    c = w['hex_code']
+            if c == self.hex_code:
+                logger.info("RAISE WINDOW: %s", self.hex_code)
+                window.raise_window(self.hex_code)
+                self.timer.Stop()
+        else:
+            self.timer.Stop()
+                # import rpdb; rpdb.set_trace()
 
     def main_loop(self):
         self.app.MainLoop()
