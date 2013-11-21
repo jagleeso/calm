@@ -12,6 +12,12 @@
 
 import wx
 
+import logging
+
+import logconfig
+logger = logging.getLogger(__name__)
+
+
 class ACTextControl(wx.TextCtrl):
     """
     A Textcontrol that accepts a list of choices at the beginning.
@@ -23,8 +29,8 @@ class ACTextControl(wx.TextCtrl):
     case_sensitive - Only case sensitive matches
     """
     def __init__(self, parent, candidates=[], match_at_start = False,
-                 add_option=False, case_sensitive=False):
-        wx.TextCtrl.__init__(self, parent, style=wx.TE_PROCESS_ENTER)
+                 add_option=False, case_sensitive=False, **kwargs):
+        wx.TextCtrl.__init__(self, parent, style=wx.TE_PROCESS_ENTER, **kwargs)
 
         self.all_candidates = candidates
         self.match_at_start = match_at_start
@@ -52,8 +58,7 @@ class ACTextControl(wx.TextCtrl):
         # loss of focus should hide the popup
         self.Bind(wx.EVT_KILL_FOCUS, self._on_focus_loss)
         self.Bind(wx.EVT_SET_FOCUS, self._on_focus)
-        
-    
+
     def SetValue(self, value):
         """
         Directly calling setvalue triggers textevent
@@ -230,6 +235,7 @@ class ACTextControl(wx.TextCtrl):
             if not visible:
                 #TODO: trigger event?
                 self.callback(self.GetValue())
+                self.popup.Show(False)
                 pass
             # Add option is only displayed
             elif len(self.select_candidates) == 0:

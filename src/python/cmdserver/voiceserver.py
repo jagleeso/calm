@@ -25,23 +25,54 @@ def expanded(widget, padding=0):
     sizer.Add(widget, 1, wx.EXPAND|wx.ALL, padding)
     return sizer
 
-def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, case_sensitive=False, description="Enter text"):
-    panel = wx.Panel(frm)
+def wx_string_fetcher(app, frm, match_at_start = False, add_option=False, 
+        case_sensitive=False, description="text", on_close=None):
+
+    panel = wx.Panel(frm)     
+    ok = wx.Button(panel, label="Ok")
+    cancel = wx.Button(panel, label="Cancel")
+    description_txt = wx.StaticText(panel)
+    def set_description(descrip):
+        if descrip is None:
+            descrip = "text"
+        descrip = descrip.lower()
+        description_txt.SetLabel("Enter {descrip}:".format(**locals()))
+    user_input = actextcontrol.ACTextControl(panel, candidates=[], add_option=False, size=(280, -1))
+    user_input.set_description = set_description
+    user_input.set_description(description)
+
+    # Set sizer for the frame, so we can change frame size to match widgets
+    expand_sizer = wx.BoxSizer()
+    expand_sizer.Add(panel, 1, wx.ALL | wx.EXPAND)        
+
+    # Layout our GUI
+    sizer = wx.GridBagSizer(2, 5)
+    sizer.Add(description_txt, (0, 0))
+    sizer.Add(user_input, (1, 0))
+    sizer.Add(ok, (1, 1))
+    sizer.Add(cancel, (1, 2))
+
+    # Add a border in the window
+    border = wx.BoxSizer()
+    border.Add(sizer, 1, wx.ALL | wx.EXPAND, 5)
+
+    panel.SetSizerAndFit(border)  
+    frm.SetSizerAndFit(expand_sizer)  
+
+    # Hook up callbacks to the ACTextControl callbacks
+    def ok_callback_wrapper(event):
+        if user_input.callback is not None:
+            value = user_input.GetValue()
+            if value == '':
+                value = None
+            user_input.callback(value)
+    ok.Bind(wx.EVT_BUTTON, ok_callback_wrapper)
+    if on_close is not None:
+        cancel.Bind(wx.EVT_BUTTON, on_close)
+
+    user_input.SetValue('')
     
-    label1 = wx.StaticText(panel, -1, description)
-    ctrl1 = actextcontrol.ACTextControl(panel, candidates=[], add_option=False)
-
-    box = wx.BoxSizer(wx.HORIZONTAL)
-    box.Add(label1, 1, wx.EXPAND)
-    box.Add(ctrl1, 3, wx.EXPAND)
-
-    panel.SetSizer(box)
-    panel.Layout()
-    panel.SetAutoLayout(True)
-
-    ctrl1.SetValue('')
-    
-    return ctrl1
+    return user_input
 
 class AutocompleteGUIInputHandler(object):
     def __init__(self):
@@ -56,12 +87,12 @@ class AutocompleteGUIInputHandler(object):
 
     def _init_frm(self):
         # self.frm = wx.Frame(None, -1, "Test", style=wx.DEFAULT_FRAME_STYLE)
-        self.frm = wx.Frame(None, -1, "Test", style=wx.STAY_ON_TOP | wx.DEFAULT_FRAME_STYLE)
+        self.frm = wx.Frame(None, -1, "", style=wx.STAY_ON_TOP | wx.DEFAULT_FRAME_STYLE)
         self.app.SetTopWindow(self.frm)
         # self.frm.SetSize((400, 100))
         # self.frm.SetSize((400, 100))
         self.frm.Bind(wx.EVT_CLOSE, self._on_close)
-        self.string_fetcher = wx_string_fetcher(self.app, self.frm)
+        self.string_fetcher = wx_string_fetcher(self.app, self.frm, on_close=self._on_close)
         self.has_been_shown = False
         self.hex_code = None 
         self.frm.Bind(wx.EVT_SHOW, self._raise)
@@ -81,14 +112,14 @@ class AutocompleteGUIInputHandler(object):
 
     def ask_for_string(self, description, candidates, callback):
         # self._init_frm()
-        self.frm.SetTitle(description)
+        self.frm.SetTitle("Calm")
         logger.info("candidates == %s", candidates)
         if candidates is not None and candidates != []:
             self.string_fetcher.all_candidates = candidates
         else:
             self.string_fetcher.all_candidates = [] 
-            self.string_fetcher.hide_popup()
-            logger.info("hide the popup")
+            # self.string_fetcher.hide_popup()
+            # logger.info("hide the popup")
 
         self.string_fetcher.SetValue('')
         def finish_input_wrapper(string):
@@ -105,6 +136,7 @@ class AutocompleteGUIInputHandler(object):
             self._hide_frm()
             return callback(string)
         self.string_fetcher.callback = finish_input_wrapper
+        self.string_fetcher.set_description(description)
         self.frm.Center()
         self.frm.Iconize(False)
         self.frm.Raise()
@@ -112,9 +144,6 @@ class AutocompleteGUIInputHandler(object):
         self.frm.SetFocus()
         self.app.SetTopWindow(self.frm)
         self.string_fetcher.SetFocus()
-
-        def on_timer(event):
-            pass  # do whatever
 
         # TIMER_ID = 100  # pick a number
         # timer = wx.Timer(panel, TIMER_ID)  # message will be sent to the panel
@@ -125,8 +154,16 @@ class AutocompleteGUIInputHandler(object):
         # self.app.Raise()
         # self.frm.ToggleWindowStyle(wx.STAY_ON_TOP)
 
+    # def _reshow_popup(self):
+    #     self.string_fetcher.hide_popup()
+    #     self.string_fetcher._on_focus(None)
+
     def _raise(self, event):
         logger.info("raise?")
+        if self.app.IsActive():
+            # logger.info("Looks like we already have focus")
+            self.timer.Stop()
+            return
         if self.hex_code is not None:
             ws = window.windows()
             c = None
@@ -136,10 +173,11 @@ class AutocompleteGUIInputHandler(object):
             if c == self.hex_code:
                 logger.info("RAISE WINDOW: %s", self.hex_code)
                 window.raise_window(self.hex_code)
+                # self._reshow_popup()
                 self.timer.Stop()
         else:
+            # self._reshow_popup()
             self.timer.Stop()
-                # import rpdb; rpdb.set_trace()
 
     def main_loop(self):
         self.app.MainLoop()
