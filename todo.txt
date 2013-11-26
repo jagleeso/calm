@@ -46,8 +46,23 @@ cassey
 - not so huge
 - clickable?
 
+DO
 - add a "HELP" or "HELP CALM" command for displaying help about the currently available commands (i.e. if 
   we are currently talking to a program [we are sending to one or talking to one], or if we are using the 
   active application, or any server commands [if we are not sending to one?])
   - should also help with the case of "what program am I talking to / who am I sending commands?"
 - make notifications get sent to the server so they update properly
+  - but then the server would have to block...
+  - make a notification process.
+  - client sends ['notify', "some message", "/path/to/icon.png" or None]
+- add application icons
+  - for notifications
+  - for user input dialogs
+
+MAYBE DO
+- remote control an application in a VM
+  - control clementine
+  - **need a verbose notification mode for remotely controlled applications
+
+PROBABLY NOT DO
+- report errors for commands in the command server
