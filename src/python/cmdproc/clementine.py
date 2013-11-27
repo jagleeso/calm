@@ -22,11 +22,12 @@ class ClementineCmdProc(cmdproc.CmdProc):
         'commands': [ 
             [['cmd', 'PLAY']],
             [['cmd', 'PAUSE']],
-            [['cmd', 'VOLUME'], ['arg', 'int', "Volume Level"]],
+            [['cmd', 'VOLUME'], ['arg', 'int', "Volume Level", "A number between 0 and 100"]],
             [['cmd', 'NEXT']],
             [['cmd', 'PREVIOUS']],
-            [['cmd', 'TRACK'], ['arg', 'str', "Track to Play"]],
+            [['cmd', 'TRACK'], ['arg', 'str', "Track to Play", "The name of a track in your playlist"]],
         ],
+        'icon': '/usr/share/icons/hicolor/scalable/apps/application-x-clementine.svg',
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
@@ -122,6 +123,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
             track_number = self.track_index[track[1]]
         except KeyError:
             logger.exception("No such track \"%s\"...", track[1])
+            self.notify_server("No such track:", track[1])
             return
         try:
             result = mydbus.send_dbus('org.mpris.clementine', '/TrackList', 'org.freedesktop.MediaPlayer.PlayTrack', [track_number])

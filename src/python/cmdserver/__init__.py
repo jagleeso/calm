@@ -153,6 +153,10 @@ class CmdServer(object):
     def notify_server(self, *args, **kwargs):
         return notify.notify_server(self, *args, **kwargs)
 
+    def notify_server_for_cmdproc(self, cmdproc, *args, **kwargs):
+        kwargs['icon'] = self._cmdproc_config[cmdproc]['icon']
+        return notify.notify_server(self, *args, **kwargs)
+
     def record_macro(self, name):
         """
         Get the command processors ready to record a macro (on return, we're ready).
@@ -243,6 +247,12 @@ class CmdServer(object):
             except:
                 pass
             logger.exception(e.message)
+            if type(e) == BadCmdProcCommandInput:
+                # import rpdb; rpdb.set_trace()
+                cmd_str = ' '.join(cmdarg[1] for cmdarg in e.cmd_so_far)
+                self.notify_server_for_cmdproc(e.cmdproc,
+                        "Bad input for {cmd_str}:".format(**locals()), 
+                        "expected {descr}".format(descr=e.arg_description.lower()))
             callback()
         self._cmd_dfa.cmd(cmd_strs, callback, err)
 
@@ -283,7 +293,9 @@ class CmdServer(object):
         else:
             cmdproc_cmds = extract_cmds(self._cmdproc_config[current_cmdproc]['commands'])
             cmdproc_str = config_to_cmd_str(cmdproc_cmds)
-            self.notify_server('Commands for {program}:'.format(program=current_cmdproc), 
+            self.notify_server_for_cmdproc(
+                    current_cmdproc,
+                    'Commands for {program}:'.format(program=current_cmdproc), 
                     cmdproc_str + '\n...\n' + server_str)
 
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
@@ -427,6 +439,7 @@ class CmdDFA(object):
     def __init__(self, cmdserver, cmdproc_cmds):
         self._cmdserver = cmdserver
         self._cmdproc_dfa = {}
+        self._cmdproc_argspecs = {}
         self._init_dfa(cmdproc_cmds)
 
         # default input handler
@@ -456,7 +469,9 @@ class CmdDFA(object):
         self._cmdserver._is_talking = True
         assert self._cmdserver._prev_receiving_cmdproc is None
         self._cmdserver._receiving_cmdproc = cmdproc
-        self._cmdserver.notify_server("Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.notify_server_for_cmdproc(
+                self._cmdserver._receiving_cmdproc,
+                "Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
 
     def done_talking(self, cmdproc):
         self._talking_to_cmdproc = False
@@ -592,7 +607,10 @@ class CmdDFA(object):
                 self._cmdserver.send_cmd(cmdproc, cmd)
                 callback()
             def cmdproc_and_cmdserver_err(e):
-                err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
+                if type(e) == BadCmdProcCommandInput:
+                    err(e)
+                else:
+                    err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
             self.cmdproc_cmd(cmdproc, words, send_cmd_cb, cmdproc_and_cmdserver_err)
 
         # See if we're talking to a specific command processor
@@ -612,22 +630,31 @@ class CmdDFA(object):
     def cmdproc_cmd(self, cmdproc, words, cmd_callback, err):
         try:
             dfa = self._cmdproc_dfa[cmdproc]
+            argspecs = self._cmdproc_argspecs[cmdproc]
         except KeyError:
             err(NoSuchCmdProc(cmdproc, words))
             return
         cmd = []
         i = 0
-        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i, cmd, dfa)
+        self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i, cmd, dfa, argspecs)
 
-    def _resume_cmdproc_cmd(self, cmdproc, cmd_callback, err, words, i, cmd, dfa):
+    def _resume_cmdproc_cmd(self, cmdproc, cmd_callback, err, words, i, cmd, dfa, argspecs):
         """
         Call cmd_callback with the command  when we're done handling the command, or call err 
         with and exception if the command is bad.
         """
-        def handle_arg(result, i):
+        def arg_description(argcmd):
+            if len(argcmd) == 4:
+                return argcmd[3]
+            else:
+                return argcmd[2]
+        def handle_arg(argspec, result, i):
             def arg_cb(arg):
-                cmd.append(arg)
-                self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa)
+                if isinstance(arg, ValueError):
+                    err(BadCmdProcCommandInput(cmdproc, cmd, w, arg_description(argspec)))
+                else:
+                    cmd.append(arg)
+                    self._resume_cmdproc_cmd(cmdproc, cmd_callback, err, words, i + 1, cmd, dfa, argspecs)
             inputfunc = result[1]
             request = ['request', [words[0:i+1], i]]
             candidates = self._cmdserver.get_candidates(cmdproc, request)
@@ -642,7 +669,8 @@ class CmdDFA(object):
                 if result[0] == 'cmd':
                     cmd.append(result)
                 elif result[0] == 'arg':
-                    handle_arg(result, i)
+                    argspec = argspecs[(tuple(words[0:i+1]), i)]
+                    handle_arg(argspec, result, i)
                     return
                 i += 1
             except KeyError:
@@ -657,7 +685,8 @@ class CmdDFA(object):
                     return
                     # return cmd
                 elif result[0] == 'arg':
-                    handle_arg(result, i)
+                    argspec = argspecs[(tuple(words[0:i+1]), i)]
+                    handle_arg(argspec, result, i)
                     return
                 i += 1
         except KeyError:
@@ -705,6 +734,7 @@ class CmdDFA(object):
                 }
         for cmdproc in cmdproc_cmds.keys():
             cmdproc_dfa = {}
+            cmdproc_argspecs = {}
             cmds = cmdproc_cmds[cmdproc]
             # TODO: this scheme doesn't handle multiple states (e.g. TOP LEFT or TOP RIGHT)
             for cmdproc_cmd in cmds:
@@ -726,15 +756,20 @@ class CmdDFA(object):
                             # inputfunc_wrapper = lambda: ['arg', inputfunc(description)]
                             # inputfunc_wrapper = inputfunc
                             cmdproc_dfa[(tuple(cmd_delimeters), i)] = ['arg', self.wrapped_func(argfunc[cmdarg[1]], description)]
+                            cmdproc_argspecs[(tuple(cmd_delimeters), i)] = cmdarg
                         else:
                             raise NotImplementedError("Unknown cmdarg {cmdarg}".format(**locals()))
                 cmdproc_dfa[(tuple(cmd_delimeters), len(cmdproc_cmd))] = 'accept'
             self._cmdproc_dfa[cmdproc] = cmdproc_dfa
+            self._cmdproc_argspecs[cmdproc] = cmdproc_argspecs
 
     def wrapped_func(self, func, description):
         def get_input(arg_cb, candidates=[]):
             def wrapped_arg_cb(user_input):
-                return arg_cb(['arg', user_input])
+                if isinstance(user_input, Exception):
+                    return arg_cb(user_input)
+                else:
+                    return arg_cb(['arg', user_input])
             return func(description, wrapped_arg_cb, candidates)
         return get_input
 
@@ -754,8 +789,11 @@ class CmdDFA(object):
         assert not self._asking_for_input
         self._asking_for_input = True
         def int_callback_wrapper(string):
-            integer = int(string)
-            return callback(integer)
+            try:
+                integer = int(string)
+                return callback(integer)
+            except ValueError as e:
+                return callback(e)
         self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(int_callback_wrapper))
 
 class NeitherCmdProcOrServerCommand(Exception):
@@ -777,6 +815,15 @@ class BadCmdProcCommand(Exception):
         self.cmdproc = cmdproc
         self.cmd_so_far = cmd_so_far
         self.unexpected = unexpected
+
+class BadCmdProcCommandInput(Exception):
+    def __init__(self, cmdproc, cmd_so_far, unexpected, arg_description):
+        message = "Failed to run command for {cmdproc}.  Saw {cmd_so_far}, but didn't expect {unexpected} (type should be {arg_description})".format(**locals())
+        Exception.__init__(self, message)
+        self.cmdproc = cmdproc
+        self.cmd_so_far = cmd_so_far
+        self.unexpected = unexpected
+        self.arg_description = arg_description
 
 class NoSuchCmdProc(Exception):
     def __init__(self, cmdproc, words):

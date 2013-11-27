@@ -64,6 +64,8 @@ class CmdProc(object):
 
     def notify_server(self, *args, **kwargs):
         self._notifylock.acquire()
+        if 'icon' in self.config:
+            kwargs['icon'] = self.config['icon']
         result = notify.notify_server(self, *args, **kwargs)
         self._notifylock.release()
         return result

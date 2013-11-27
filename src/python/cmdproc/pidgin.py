@@ -35,6 +35,7 @@ class PidginCmdProc(cmdproc.CmdProc):
             [['cmd', 'MESSAGE'], ['arg', 'str', 'Conversation'], ['arg', 'str', 'Message']],
             [['cmd', 'RESPOND'], ['arg', 'str', 'Message']],
         ],
+        'icon': '/usr/share/icons/hicolor/scalable/apps/pidgin.svg',
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {

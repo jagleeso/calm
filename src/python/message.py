@@ -20,7 +20,7 @@ def is_response(response):
     return type(response) == list and response[0] == 'response'
 def is_notification(notification):
     return type(notification) == list and notification[0] == 'notification' and \
-            len(notification) == 3 and notification[1] is not None
+            len(notification) == 4 and notification[1] is not None
 
 def _check_valid_cmd(cmd):
     """
@@ -49,8 +49,9 @@ def _check_valid_candidates(candidates):
 
 def _check_valid_notification(notification):
     """
-    ['notification', 'hello', None]  
-    ['notification', 'hello', 'there']  
+    ['notification', 'hello', None, None]  
+    ['notification', 'hello', 'there', None]  
+    ['notification', 'hello', 'there', '/usr/share/icons/hicolor/scalable/apps/application-x-clementine.svg']  
     """
     return is_notification(notification)
 

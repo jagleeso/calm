@@ -55,14 +55,27 @@ DO
   - but then the server would have to block...
   - make a notification process.
   - client sends ['notify', "some message", "/path/to/icon.png" or None]
-- add application icons
+
+- **add application icons
   - for notifications
   - for user input dialogs
+- i don't think setting a blank icon is working.... maybe set it to a default icon (like a calm icon)
 
 MAYBE DO
-- remote control an application in a VM
-  - control clementine
-  - **need a verbose notification mode for remotely controlled applications
+- add error messages for commands recognized by other applications that we aren't currently 
+  talking to (may cause superfluous messages for false activation...)
+  - only do it if the user is:
+    - sending to an application
+      - "Your sending to {program}. To {CMD}, first FINSIH SENDING then SEND to 
+        {other_program}."
+    - talking to an application
+      - "Your talking to {program}. To {CMD}, first FINSIH TALKING then TALK to 
+        {other_program}."
+- make it so you can abort a send
+  - "FINISH" "SENDING"
 
 PROBABLY NOT DO
 - report errors for commands in the command server
+- remote control an application in a VM
+  - control clementine
+  - **need a verbose notification mode for remotely controlled applications

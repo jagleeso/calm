@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import pynotify
 import argparse
+import gtk
 
 import procutil
 
@@ -16,14 +17,21 @@ class GUINotifier(object):
         pynotify.init("Why do I need this...")
         self.notice = pynotify.Notification('', '')
 
-    def notify(self, title, message=None):
+    def notify(self, title, message=None, icon=None):
         # notice = pynotify.Notification(title, message)
         # notice.show()
         msg = get_msg(title, message)
         logger.info("NOTIFY: %s", msg)
         # import rpdb; rpdb.set_trace()
         # self.notice.update(msg)
-        self.notice.update(title, message)
+        if icon is not None:
+            self.notice.update(title, message)
+            pixbuf = gtk.gdk.pixbuf_new_from_file(icon)
+            self.notice.set_icon_from_pixbuf(pixbuf)
+        else:
+            # TODO: does this get rid of the old icon?
+            # self.notice.set_icon_from_pixbuf(None)
+            self.notice.update(title, message, None)
         self.notice.show()
 
 class TerminalNotifier(object):
@@ -167,8 +175,8 @@ def notify_server_connection(notify_server, notify_port):
         raise
     return s
 
-def notify_server(self, title, msg=None):
-    message.send_notification(self.notify_socket, ['notification', title, msg])
+def notify_server(self, title, msg=None, icon=None):
+    message.send_notification(self.notify_socket, ['notification', title, msg, icon])
 
 def main():
     parser = argparse.ArgumentParser(description="Notification server (listen for notifications then publish them)")

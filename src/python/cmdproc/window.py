@@ -33,6 +33,7 @@ class WindowCmdProc(cmdproc.CmdProc):
             [['cmd', 'BOTTOM'], ['cmd', 'LEFT']],
             [['cmd', 'BOTTOM'], ['cmd', 'RIGHT']],
         ],
+        'icon': '/usr/share/icons/hicolor/scalable/apps/session-properties.svg',
     }
     def __init__(self, cmdserver_server, cmdserver_port):
         cmd_to_handler = {
