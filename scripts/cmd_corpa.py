@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import argparse
-from cmdproc import clementine, pidgin, window
+from cmdproc import clementine, pidgin, window, extract_cmds
 from cmdserver import CmdServer
 
 def main():
@@ -25,16 +25,6 @@ def main():
 
 def pr(*cmds):
     print " ".join(cmds)
-
-def extract_cmds(cmd_config):
-    cmd_delims = []
-    for cmd in cmd_config:
-        cmd_delimiters = []
-        for cmdarg in cmd:
-            if cmdarg[0] == 'cmd':
-                cmd_delimiters.append(cmdarg[1])
-        cmd_delims.append(cmd_delimiters)
-    return cmd_delims
 
 def prefixes(l):
     for i in range(l):

@@ -1,2 +1,2 @@
-pythonpath=($PWD/src/python $PWD/extern/python $pythonpath)
+pythonpath=($PWD/src/python $PWD/extern/python $PWD/scripts $pythonpath)
 export PYTHONPATH

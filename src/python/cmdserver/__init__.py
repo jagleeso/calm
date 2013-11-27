@@ -10,7 +10,7 @@ import traceback
 import errno 
 import time
 
-from cmdproc import window
+from cmdproc import window, extract_cmds
 
 import config
 import notify
@@ -48,6 +48,7 @@ class CmdServer(object):
             [['cmd', 'SLEEP']],
             [['cmd', 'TALK'], ['arg', 'str'], ['cmdproc', 1]],
             [['cmd', 'FINISH'], ['cmd', 'TALKING']],
+            [['cmd', 'HELP']],
         ],
     }
     """
@@ -68,6 +69,8 @@ class CmdServer(object):
         self.macros = set([])
         self._macro_cmd_receiver = []
 
+        self._is_talking = False
+        self._is_sending = False
         self.is_recording = False
         self.current_macro = None
 
@@ -243,6 +246,46 @@ class CmdServer(object):
             callback()
         self._cmd_dfa.cmd(cmd_strs, callback, err)
 
+    def cmd_help(self):
+        def config_to_cmd_str(cmds):
+            return ', '.join(sorted(
+                ' '.join(cmd_delims) for cmd_delims in cmds))
+
+        cmdserver_cmds = None
+        if self._is_sending:
+            cmdserver_cmds = [
+                    ['WAKEUP', 'CALM'],
+                    ['SLEEP'],
+                    ['HELP'],
+                    ]
+        else:
+            cmdserver_cmds = extract_cmds(self.config['commands'])
+            if not self._is_talking:
+                cmdserver_cmds.remove(['FINISH', 'TALKING'])
+
+            if self.is_recording:
+                cmdserver_cmds.remove(['RECORD'])
+            else:
+                cmdserver_cmds.remove(['FINISH', 'MACRO'])
+                cmdserver_cmds.remove(['UNDO'])
+        server_str = config_to_cmd_str(cmdserver_cmds)
+
+        current_cmdproc = None
+        if self._is_sending or self._is_talking:
+            current_cmdproc = self._receiving_cmdproc
+        else:
+            current_program = window.get_current_program()
+            if current_program in self._cmdproc_config:
+                current_cmdproc = current_program
+
+        if current_cmdproc is None:
+            self.notify_server('Commands:', server_str)
+        else:
+            cmdproc_cmds = extract_cmds(self._cmdproc_config[current_cmdproc]['commands'])
+            cmdproc_str = config_to_cmd_str(cmdproc_cmds)
+            self.notify_server('Commands for {program}:'.format(program=current_cmdproc), 
+                    cmdproc_str + '\n...\n' + server_str)
+
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
     """
     Takes a DFA that transitions on words based on whether they are command delimiters.
@@ -395,6 +438,7 @@ class CmdDFA(object):
 
     def get_ready_to_send(self, cmdproc):
         self._is_sending = True
+        self._cmdserver._is_sending = True
         # The previous receiving command proc should only be None if we are not talking to a command 
         # proc.
         assert not self._talking_to_cmdproc or self._cmdserver._prev_receiving_cmdproc is None
@@ -403,17 +447,20 @@ class CmdDFA(object):
 
     def done_sending(self):
         self._is_sending = False
+        self._cmdserver._is_sending = False
         self._cmdserver._receiving_cmdproc = self._cmdserver._prev_receiving_cmdproc 
         self._cmdserver._prev_receiving_cmdproc = None
 
     def get_ready_to_talk(self, cmdproc):
         self._talking_to_cmdproc = True 
+        self._cmdserver._is_talking = True
         assert self._cmdserver._prev_receiving_cmdproc is None
         self._cmdserver._receiving_cmdproc = cmdproc
         self._cmdserver.notify_server("Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
 
     def done_talking(self, cmdproc):
         self._talking_to_cmdproc = False
+        self._cmdserver._is_talking = False
         self._cmdserver.notify_server("Finished talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
         self._cmdserver._receiving_cmdproc = None 
 
@@ -460,6 +507,10 @@ class CmdDFA(object):
                 return
         elif is_cmd('SLEEP'):
             self._cmdserver.sleep()
+            callback()
+            return
+        elif is_cmd('HELP'):
+            self._cmdserver.cmd_help()
             callback()
             return
 

@@ -276,3 +276,13 @@ def cmdproc_main(cmdproc_class, parser=None):
     processor = cmdproc_class(args.server, args.port)
 
     return (args, processor)
+
+def extract_cmds(cmd_config):
+    cmd_delims = []
+    for cmd in cmd_config:
+        cmd_delimiters = []
+        for cmdarg in cmd:
+            if cmdarg[0] == 'cmd':
+                cmd_delimiters.append(cmdarg[1])
+        cmd_delims.append(cmd_delimiters)
+    return cmd_delims
