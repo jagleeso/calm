@@ -7,13 +7,13 @@ import logconfig
 logger = logging.getLogger(__name__)
 
 class ReplServer(cmdserver.CmdServer):
-    def __init__(self, cmdproc_paths, port):
-        super(ReplServer, self).__init__(cmdproc_paths, port)
+    def __init__(self, notifier_path, cmdproc_paths, port):
+        super(ReplServer, self).__init__(notifier_path, cmdproc_paths, port)
         self.listening = True
 
     def start(self):
         logger.info("Starting REPL server...")
-        self.startup_cmdprocs()
+        self.startup_procs()
         self.setup_dispatch_loop()
         # while True:
         #     try:

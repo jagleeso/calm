@@ -2,6 +2,7 @@
 import cmdproc
 import mydbus
 import procutil
+import notify
 
 # https://developer.pidgin.im/wiki/DbusHowto
 # provide asynchronous 

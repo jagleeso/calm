@@ -70,7 +70,8 @@ class PidginCmdProc(cmdproc.CmdProc):
         last_conversation = _last_conversation.value
         if last_sender == '':
             logger.info("There is no last sender... ignoring RESPOND and notifying")
-            notify.notify_send("Message not received:", "no one to reply to")
+            # notify.notify_send("Message not received:", "no one to reply to")
+            self.notify_server("Message not received:", "no one to reply to")
         else:
             send_im(last_conversation, message[1])
 
@@ -78,10 +79,12 @@ class PidginCmdProc(cmdproc.CmdProc):
         self._init_conversation_index()
         cmd, receiver, message = args
         if message[1] is None:
-            notify.notify_send("Message not delivered since message was empty")
+            # notify.notify_send("Message not delivered since message was empty")
+            self.notify_server("Message not delivered since message was empty")
             return
         if self.conversation_index is None or receiver[1] not in self.conversation_index:
-            notify.notify_send("Message not delivered since conversation doesn't exist:", receiver[1])
+            # notify.notify_send("Message not delivered since conversation doesn't exist:", receiver[1])
+            self.notify_server("Message not delivered since conversation doesn't exist:", receiver[1])
             return
         convo_id = self.conversation_index[receiver[1]]
         send_im(convo_id, message[1])

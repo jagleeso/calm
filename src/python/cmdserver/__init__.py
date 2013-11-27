@@ -7,6 +7,8 @@ import socket
 import logging
 import signal
 import traceback
+import errno 
+import time
 
 from cmdproc import window
 
@@ -55,7 +57,7 @@ class CmdServer(object):
     cmdprocs:
     a list of paths to execute
     """
-    def __init__(self, cmdproc_paths, port):
+    def __init__(self, notifier_path, cmdproc_paths, port):
         self.port = port
         self.cmdproc_paths = cmdproc_paths
 
@@ -69,7 +71,8 @@ class CmdServer(object):
         self.is_recording = False
         self.current_macro = None
 
-        self.notifier = notify.GUINotifier()
+        self.notifier = 'gui'
+        self.notifier_path = notifier_path
 
         self.listening = False
 
@@ -78,11 +81,11 @@ class CmdServer(object):
 
     def sleep(self):
         self.listening = False
-        self.notifier.notify("Going to sleep...")
+        self.notify_server("Going to sleep...")
 
     def wakeup(self):
         self.listening = True 
-        self.notifier.notify("Ready for commands")
+        self.notify_server("Ready for commands")
 
     def start(self):
         raise NotImplementedError
@@ -113,12 +116,15 @@ class CmdServer(object):
         not sendall()/recv() on the socket it is listening on but on the new socket returned 
         by accept().
         """
-        logger.info("HELLO")
         host = 'localhost'
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.socket.bind((host, self.port))
+
+    def startup_procs(self):
+        self.startup_notify_server()
+        self.startup_cmdprocs()
 
     def startup_cmdprocs(self):
         """
@@ -132,9 +138,17 @@ class CmdServer(object):
             cmdproc_cmds[config['program']] = config['commands']
             self._program_to_socket[config['program']] = cmdproc_socket
             self._program_to_pid[config['program']] = pid
-        setup_signal_handler(self._program_to_pid.values())
+        setup_signal_handler(self._program_to_pid.values() + [self.notify_server_pid])
 
         self._cmd_dfa = CmdDFA(self, cmdproc_cmds)
+
+    def startup_notify_server(self):
+        (s, pid) = fork_notify_server(self.notifier_path, self.notifier, config.DEFAULT_NOTIFY_PORT)
+        self.notify_socket = s 
+        self.notify_server_pid = pid
+
+    def notify_server(self, *args, **kwargs):
+        return notify.notify_server(self, *args, **kwargs)
 
     def record_macro(self, name):
         """
@@ -157,7 +171,7 @@ class CmdServer(object):
         self.is_recording = True
         self.current_macro = name
         self.macros.add(name)
-        self.notifier.notify("Recording macro:", name)
+        self.notify_server("Recording macro:", name)
         return True
 
     def replay_macro(self, name):
@@ -166,7 +180,7 @@ class CmdServer(object):
         """
         if name not in self.macros:
             return
-        self.notifier.notify("Replaying macro:", name)
+        self.notify_server("Replaying macro:", name)
         for s in self._program_to_socket.values():
             # Tell processes to stop recording the macro, since some of them might 
             # be recording.
@@ -182,9 +196,9 @@ class CmdServer(object):
             if self._macro_cmd_receiver == []:
                 # The user recorded an empty macro, ignore it.
                 self.macros.remove(self.current_macro)
-                self.notifier.notify("Nothing recorded for macro:", self.current_macro)
+                self.notify_server("Nothing recorded for macro:", self.current_macro)
             else:
-                self.notifier.notify("Finished recording macro:", self.current_macro)
+                self.notify_server("Finished recording macro:", self.current_macro)
         self.is_recording = False
         self.current_macro = None
         self._macro_cmd_receiver = []
@@ -273,17 +287,18 @@ def cmdserver_arg_parser(parser=None):
         parser = argparse.ArgumentParser(description="A command server.")
     parser.add_argument('cmdproc_paths', nargs='+')
     parser.add_argument('--port', type=int, default=config.DEFAULT_CMDSERVER_PORT)
+    parser.add_argument('--notifier', required=True)
     return parser
 
 def cmdserver_main(cmdserver_class, parser=None):
     parser = cmdserver_arg_parser(parser)
     args = parser.parse_args()
 
-    cmdserver = cmdserver_class(args.cmdproc_paths, args.port)
+    cmdserver = cmdserver_class(args.notifier, args.cmdproc_paths, args.port)
 
     return (args, cmdserver)
 
-_CMDPROC_PIDS = None
+_PIDS = None
 def exit_cmdserver(signum, frame):
     signal.signal(signal.SIGINT, _ORIGINAL_SIGINT)
     signal.signal(signal.SIGTERM, _ORIGINAL_SIGTERM)
@@ -291,9 +306,9 @@ def exit_cmdserver(signum, frame):
     exit_server()
 
 def exit_server():
-    logger.info("Terminating command server and command server processes (%s)...", _CMDPROC_PIDS)
-    if _CMDPROC_PIDS is not None:
-        for pid in _CMDPROC_PIDS:
+    logger.info("Terminating command server, command server processes, and notification server (%s)...", _PIDS)
+    if _PIDS is not None:
+        for pid in _PIDS:
             os.kill(pid, signal.SIGTERM)
     sys.exit()
 
@@ -301,8 +316,8 @@ _ORIGINAL_SIGINT = signal.getsignal(signal.SIGINT)
 _ORIGINAL_SIGTERM = signal.getsignal(signal.SIGTERM)
 _ORIGINAL_SIGHUP = signal.getsignal(signal.SIGHUP)
 def setup_signal_handler(cmdproc_pids):
-    global _CMDPROC_PIDS
-    _CMDPROC_PIDS = cmdproc_pids
+    global _PIDS
+    _PIDS = cmdproc_pids
     signal.signal(signal.SIGINT, exit_cmdserver)
     signal.signal(signal.SIGTERM, exit_cmdserver)
     signal.signal(signal.SIGHUP, exit_cmdserver)
@@ -345,6 +360,26 @@ def fork_cmdproc(cmdserver_socket, cmdserver_port, cmdproc_path):
     logger.info(config)
     return (cmdproc_socket, pid, config)
 
+def fork_notify_server(notifier_path, notifier_type, notifier_port):
+    try:
+        pid = os.fork()
+    except OSError, e:
+        sys.exit(1)
+    if pid == 0:
+        os.execv(notifier_path, [notifier_path, '--type', notifier_type, '--port', str(notifier_port)])
+    while True:
+        try: 
+            notifier_socket = notify.notify_server_connection(config.DEFAULT_HOST, notifier_port)
+            break
+        except (OSError, socket.error) as e:
+            if e.errno != errno.ECONNREFUSED:
+                raise
+        time.sleep(config.NOTIFY_CONNECT_RETRY_TIMEOUT)
+
+            
+    logger.info("%s notify server \"%s\" (PID: %s) connected", notifier_type, notifier_path, pid)
+    return (notifier_socket, pid)
+
 class CmdDFA(object):
     def __init__(self, cmdserver, cmdproc_cmds):
         self._cmdserver = cmdserver
@@ -375,11 +410,11 @@ class CmdDFA(object):
         self._talking_to_cmdproc = True 
         assert self._cmdserver._prev_receiving_cmdproc is None
         self._cmdserver._receiving_cmdproc = cmdproc
-        self._cmdserver.notifier.notify("Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.notify_server("Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
 
     def done_talking(self, cmdproc):
         self._talking_to_cmdproc = False
-        self._cmdserver.notifier.notify("Finished talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.notify_server("Finished talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
         self._cmdserver._receiving_cmdproc = None 
 
     def cmd(self, words, callback, err):

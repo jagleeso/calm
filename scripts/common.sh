@@ -10,7 +10,8 @@ start_cmdserver() {
     shift 1
     cd_root
     local cmdprocs=$(find src/python/cmdproc -executable -name '*.py*')
-    src/python/cmdserver/$cmdserver.py $cmdprocs "$@"
+    local notifier="src/python/notify.py"
+    src/python/cmdserver/$cmdserver.py $cmdprocs "$@" --notifier "$notifier"
     cd -
 }
 

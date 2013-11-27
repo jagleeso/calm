@@ -18,6 +18,9 @@ def is_request(request):
     return type(request) == list and request[0] == 'request'
 def is_response(response):
     return type(response) == list and response[0] == 'response'
+def is_notification(notification):
+    return type(notification) == list and notification[0] == 'notification' and \
+            len(notification) == 3 and notification[1] is not None
 
 def _check_valid_cmd(cmd):
     """
@@ -43,6 +46,13 @@ def _check_valid_candidates(candidates):
     """
     return type(candidates) == list and candidates[0] == 'candidates' and (
             candidates[1] is None or type(candidates[1]) == list)
+
+def _check_valid_notification(notification):
+    """
+    ['notification', 'hello', None]  
+    ['notification', 'hello', 'there']  
+    """
+    return is_notification(notification)
 
 # cmdserver stuff
 
@@ -91,6 +101,22 @@ def send_response(socket, response):
     assert _check_valid_response(response)
     msg = serialize_msg(response)
     return send(socket, msg)
+
+# either cmdproc or cmdserver stuff
+
+# TODO: def send_notification(socket, title, message=None, imgpath=None):
+def send_notification(socket, notification):
+    assert _check_valid_notification(notification)
+    msg = serialize_msg(notification)
+    return send(socket, msg)
+
+# notify server stuff
+
+def recv_notification(socket):
+    msg = recv(socket)
+    notification = deserialize_msg(msg)
+    assert _check_valid_notification(notification)
+    return notification
 
 """
 Use a dumb protocol for sending fixed size messages:

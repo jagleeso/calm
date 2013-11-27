@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 import pynotify
+import argparse
 
 import procutil
 
@@ -19,7 +21,9 @@ class GUINotifier(object):
         # notice.show()
         msg = get_msg(title, message)
         logger.info("NOTIFY: %s", msg)
-        self.notice.update(msg)
+        # import rpdb; rpdb.set_trace()
+        # self.notice.update(msg)
+        self.notice.update(title, message)
         self.notice.show()
 
 class TerminalNotifier(object):
@@ -50,3 +54,138 @@ def notify_send(title, message=None):
         procutil.call(['notify-send', msg])
     except proctuil.WrappedCalledProcessError:
         logger.exception("notify-osd failed")
+
+import message
+import config
+
+import select
+import socket
+import signal
+import sys
+import errno 
+
+class NotifyServer(object):
+    def __init__(self, port, notifier_class):
+        self.notifier = notifier_class()
+        self.port = port
+        # See http://pymotw.com/2/select/
+        self.poller = select.poll()
+        self.sockets = []
+        self.listen_socket = None
+        self.fd_to_socket = {}
+
+    def start(self):
+        self._init_listen_socket()
+        # self._connect_cmdprocs_and_cmdserver()
+        self._setup_signal_handler()
+        self._main_loop()
+
+    def _init_listen_socket(self):
+        self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listen_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.listen_socket.bind((config.DEFAULT_HOST, self.port))
+        self.listen_socket.listen(1)
+        self._register_socket(self.listen_socket)
+
+    def _main_loop(self):
+        try:
+            while True:
+                logger.info("START POLLING")
+                for fd, flag in self.poller.poll():
+                    s = self.fd_to_socket[fd]
+                    logger.info("POLL EVENT")
+
+                    if flag & (select.POLLIN | select.POLLPRI):
+                        if s is self.listen_socket:
+                            # New incoming connection
+                            logger.info("New connection")
+                            self._accept_new_connection()
+                            continue
+                        notification = message.recv_notification(s)
+                        self.notifier.notify(*notification[1:])
+                    elif flag & select.POLLHUP:
+                        logger.info("Subscriber hung up")
+                        self._remove_socket(s)
+                    elif flag & select.POLLERR:
+                        logger.info("Error on subscriber socket")
+                        self._remove_socket(s)
+                    continue
+        except select.error as e:
+            err = e.args[0]
+            if err != errno.EINTR:
+                raise e
+
+    def _exit(self, signum, frame):
+        logger.info("Got a shutdown signal; close subscriber connections")
+        for s in self.sockets:
+            self._remove_socket(s)
+        self.listen_socket.close()
+        logger.info("Exiting notification server")
+
+    def _setup_signal_handler(self):
+        f = self._exit
+        signal.signal(signal.SIGINT, f)
+        signal.signal(signal.SIGTERM, f)
+        signal.signal(signal.SIGHUP, f)
+
+    # def _connect_cmdprocs_and_cmdserver()
+
+    #     # listen for connections until everyone connects (all cmdprocs and cmdserver)
+    #     self.fd_to_socket = {}
+    #     subscribers = [c.config['program'] for c in [config.CMD_SERVER] + config.CMD_PROCS]
+    #     for i in range(len(subscribers)):
+    #         self.listen_socket.listen(1)
+    #         self._accept_new_connection()
+
+    #     # registers all the sockets for poll-ing 
+    #     for s in self.sockets:
+    #         self.poller.register(s, select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR)
+
+    def _remove_socket(self, s):
+        del self.fd_to_socket[s.fileno()]
+        self.sockets.remove(s)
+        self.poller.unregister(s)
+        s.close()
+
+    def _register_socket(self, s):
+        self.poller.register(s, select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR)
+        self.fd_to_socket[s.fileno()] = s
+
+    def _accept_new_connection(self):
+        (s, address) = self.listen_socket.accept()
+        self._register_socket(s)
+        self.sockets.append(s)
+        self.listen_socket.listen(1)
+
+def notify_server_connection(notify_server, notify_port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((notify_server, notify_port))
+    except:
+        s.close()
+        raise
+    return s
+
+def notify_server(self, title, msg=None):
+    message.send_notification(self.notify_socket, ['notification', title, msg])
+
+def main():
+    parser = argparse.ArgumentParser(description="Notification server (listen for notifications then publish them)")
+    parser.add_argument('--port', type=int, default=config.DEFAULT_NOTIFY_PORT)
+    parser.add_argument('--type', required=True)
+    type_to_notifier = {
+            'gui': GUINotifier,
+            'terminal': TerminalNotifier,
+            }
+    args = parser.parse_args()
+
+    if args.type not in type_to_notifier:
+        sys.stderr.write("No such notifier type {type}\n".format(type=args.type))
+        sys.exit(1)
+
+    notify_server = NotifyServer(args.port, type_to_notifier[args.type])
+    notify_server.start()
+
+if __name__ == '__main__':
+    main()

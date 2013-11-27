@@ -54,7 +54,19 @@ class CmdProc(object):
         self._macro_cmds = self._manager.list()
         self._macros = self._manager.dict()
 
-        self.notifier = notify.GUINotifier()
+        self.notifier = 'gui'
+        self._notifylock = Lock()
+
+    def startup_notify_server(self):
+        (s, pid) = fork_notify_server(self.notifier_type, config.DEFAULT_NOTIFY_PORT)
+        self.notify_socket = s 
+        self.notify_server_pid = pid
+
+    def notify_server(self, *args, **kwargs):
+        self._notifylock.acquire()
+        result = notify.notify_server(self, *args, **kwargs)
+        self._notifylock.release()
+        return result
 
     def get_candidates(self, request):
         # no candidates by default
@@ -68,7 +80,8 @@ class CmdProc(object):
         not sendall()/recv() on the socket it is listening on but on the new socket returned 
         by accept().
         """
-        host = 'localhost'
+        self.notify_socket = notify.notify_server_connection(config.DEFAULT_HOST, config.DEFAULT_NOTIFY_PORT)
+
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((self.server, self.port))
         # send the cmdserver our configuration information
@@ -158,7 +171,7 @@ class CmdProc(object):
         old_cmd = self._macro_cmds[-1]
         del self._macro_cmds[-1]
         self._macrolock.release()
-        self.notifier.notify("Undo last {cmdproc} command:".format(cmdproc=self.config['program']), pretty_cmd(old_cmd[0]))
+        self.notify_server("Undo last {cmdproc} command:".format(cmdproc=self.config['program']), pretty_cmd(old_cmd[0]))
         logger.info("%s: %s undone.", self.config['program'], old_cmd)
         # TODO: self.notifier.post("%s undone.", old_cmd)
 
@@ -242,7 +255,7 @@ class CmdProc(object):
         self._assert_recording()
         self._macro_cmds.append([args, kwargs])
         logger.info("put_cmd: args = %s, kwargs = %s, _macro_cmds = %s", args, kwargs, list(self._macro_cmds))
-        self.notifier.notify("Recorded command:", pretty_cmd(args))
+        self.notify_server("Recorded command:", pretty_cmd(args))
         self._macrolock.release()
 
 def pretty_cmd(cmd):

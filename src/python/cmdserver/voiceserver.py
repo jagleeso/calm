@@ -113,7 +113,7 @@ class AutocompleteGUIInputHandler(object):
     def ask_for_string(self, description, candidates, callback):
         # self._init_frm()
         self.frm.SetTitle("Calm")
-        logger.info("candidates == %s", candidates)
+        # logger.info("candidates == %s", candidates)
         if candidates is not None and candidates != []:
             self.string_fetcher.all_candidates = candidates
         else:
@@ -159,7 +159,7 @@ class AutocompleteGUIInputHandler(object):
     #     self.string_fetcher._on_focus(None)
 
     def _raise(self, event):
-        logger.info("raise?")
+        # logger.info("raise?")
         if self.app.IsActive():
             # logger.info("Looks like we already have focus")
             self.timer.Stop()
@@ -171,7 +171,7 @@ class AutocompleteGUIInputHandler(object):
                 if w['pid'] == self.pid:
                     c = w['hex_code']
             if c == self.hex_code:
-                logger.info("RAISE WINDOW: %s", self.hex_code)
+                # logger.info("RAISE WINDOW: %s", self.hex_code)
                 window.raise_window(self.hex_code)
                 # self._reshow_popup()
                 self.timer.Stop()
@@ -183,11 +183,11 @@ class AutocompleteGUIInputHandler(object):
         self.app.MainLoop()
 
 class VoiceServer(cmdserver.CmdServer):
-    def __init__(self, cmdproc_paths, port, ps_lm, ps_dict):
+    def __init__(self, notifier_path, cmdproc_paths, port, ps_lm, ps_dict):
         self.ps_lm = ps_lm
         self.ps_dict = ps_dict
-        super(VoiceServer, self).__init__(cmdproc_paths, port)
-        self.notifier = notify.GUINotifier()
+        super(VoiceServer, self).__init__(notifier_path, cmdproc_paths, port)
+        self.notifier = 'gui'
 
     def init_gst(self):
         """Initialize the speech components"""
@@ -213,7 +213,7 @@ class VoiceServer(cmdserver.CmdServer):
 
     def start(self):
         logger.info("Starting Voice server...")
-        self.startup_cmdprocs()
+        self.startup_procs()
         self._cmd_dfa._string_input_handler = AutocompleteGUIInputHandler()
         logger.info("Initializing the pocketsphinx voice server...")
         self.init_gst()
@@ -276,7 +276,7 @@ def main():
     parser.add_argument('--lm', help="Language model (.lm) file")
     parser.add_argument('--dict', help="Dictionary (.dic) file")
     args = parser.parse_args()
-    server = VoiceServer(args.cmdproc_paths, args.port, args.lm, args.dict)
+    server = VoiceServer(args.notifier, args.cmdproc_paths, args.port, args.lm, args.dict)
 
     server.start()
 
