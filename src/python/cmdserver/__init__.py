@@ -9,6 +9,7 @@ import signal
 import traceback
 import errno 
 import time
+import os
 
 from cmdproc import window, extract_cmds
 
@@ -43,6 +44,7 @@ class CmdServer(object):
             [['cmd', 'RECORD'], ['arg', 'str', "New macro name"]],
             [['cmd', 'FINISH'], ['cmd', 'MACRO']],
             [['cmd', 'SEND'], ['arg', 'str'], ['cmdproc', 1]],
+            [['cmd', 'FINISH'], ['cmd', 'SENDING']],
             [['cmd', 'UNDO']],
             [['cmd', 'WAKEUP'], ['cmd', 'CALM']],
             [['cmd', 'SLEEP']],
@@ -50,6 +52,7 @@ class CmdServer(object):
             [['cmd', 'FINISH'], ['cmd', 'TALKING']],
             [['cmd', 'HELP']],
         ],
+        'icon': os.path.join(config.IMG, 'calm.svg'),
     }
     """
     Spawn cmdprocs and send them sockets to listen to messages on, and register their 
@@ -84,7 +87,7 @@ class CmdServer(object):
 
     def sleep(self):
         self.listening = False
-        self.notify_server("Going to sleep...")
+        self.notify_server("Going to sleep...", 'WAKEUP CALM to resume')
 
     def wakeup(self):
         self.listening = True 
@@ -151,6 +154,7 @@ class CmdServer(object):
         self.notify_server_pid = pid
 
     def notify_server(self, *args, **kwargs):
+        kwargs['icon'] = self.config['icon']
         return notify.notify_server(self, *args, **kwargs)
 
     def notify_server_for_cmdproc(self, cmdproc, *args, **kwargs):
@@ -178,7 +182,7 @@ class CmdServer(object):
         self.is_recording = True
         self.current_macro = name
         self.macros.add(name)
-        self.notify_server("Recording macro:", name)
+        self.notify_server("Recording macro", name)
         return True
 
     def replay_macro(self, name):
@@ -187,7 +191,7 @@ class CmdServer(object):
         """
         if name not in self.macros:
             return
-        self.notify_server("Replaying macro:", name)
+        self.notify_server("Replaying macro", name)
         for s in self._program_to_socket.values():
             # Tell processes to stop recording the macro, since some of them might 
             # be recording.
@@ -203,9 +207,9 @@ class CmdServer(object):
             if self._macro_cmd_receiver == []:
                 # The user recorded an empty macro, ignore it.
                 self.macros.remove(self.current_macro)
-                self.notify_server("Nothing recorded for macro:", self.current_macro)
+                self.notify_server("Nothing recorded for macro", self.current_macro)
             else:
-                self.notify_server("Finished recording macro:", self.current_macro)
+                self.notify_server("Finished recording macro", self.current_macro)
         self.is_recording = False
         self.current_macro = None
         self._macro_cmd_receiver = []
@@ -265,11 +269,13 @@ class CmdServer(object):
         if self._is_sending:
             cmdserver_cmds = [
                     ['WAKEUP', 'CALM'],
+                    ['FINISH', 'SENDING'],
                     ['SLEEP'],
                     ['HELP'],
                     ]
         else:
             cmdserver_cmds = extract_cmds(self.config['commands'])
+            cmdserver_cmds.remove(['FINISH', 'SENDING'])
             if not self._is_talking:
                 cmdserver_cmds.remove(['FINISH', 'TALKING'])
 
@@ -289,7 +295,7 @@ class CmdServer(object):
                 current_cmdproc = current_program
 
         if current_cmdproc is None:
-            self.notify_server('Commands:', server_str)
+            self.notify_server('Commands', server_str)
         else:
             cmdproc_cmds = extract_cmds(self._cmdproc_config[current_cmdproc]['commands'])
             cmdproc_str = config_to_cmd_str(cmdproc_cmds)
@@ -464,6 +470,12 @@ class CmdDFA(object):
         self._cmdserver._receiving_cmdproc = self._cmdserver._prev_receiving_cmdproc 
         self._cmdserver._prev_receiving_cmdproc = None
 
+        # If we were talking before we sent this command, remind the user of the mode switch
+        if self._cmdserver._is_talking:
+            self._cmdserver.notify_server_for_cmdproc(
+                    self._cmdserver._receiving_cmdproc,
+                    "Talking to {cmdproc} again".format(cmdproc=self._cmdserver._receiving_cmdproc))
+
     def get_ready_to_talk(self, cmdproc):
         self._talking_to_cmdproc = True 
         self._cmdserver._is_talking = True
@@ -532,6 +544,10 @@ class CmdDFA(object):
         # TODO: add try / except and then handle current application in focus
         # logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
+            if is_cmd('FINISH', 'SENDING'):
+                self.done_sending()
+                callback()
+                return
             def send_cmd_cb(cmd):
                 self._cmdserver.send_cmd(self._cmdserver._receiving_cmdproc, cmd)
                 self.done_sending()

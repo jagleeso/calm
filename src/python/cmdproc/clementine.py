@@ -123,7 +123,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
             track_number = self.track_index[track[1]]
         except KeyError:
             logger.exception("No such track \"%s\"...", track[1])
-            self.notify_server("No such track:", track[1])
+            self.notify_server("No such track", track[1])
             return
         try:
             result = mydbus.send_dbus('org.mpris.clementine', '/TrackList', 'org.freedesktop.MediaPlayer.PlayTrack', [track_number])

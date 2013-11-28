@@ -2,6 +2,7 @@
 import pynotify
 import argparse
 import gtk
+import time
 
 import procutil
 
@@ -16,23 +17,58 @@ class GUINotifier(object):
     def __init__(self):
         pynotify.init("Why do I need this...")
         self.notice = pynotify.Notification('', '')
+        self._icon_cache = {}
+
+        self._timestamp = None
+        self._title = None
+        self._message = None
+        self._icon = None
+
+    def _record_notification(self, timestamp, title, message=None, icon=None):
+        if self._timestamp is None or timestamp - self._timestamp > config.NOTIFY_APPEND_TIME:
+            self._title = title
+            self._message = message
+            self._icon = icon
+        else:
+            # use the same icon and title as before. update the message.
+            if self._message is None:
+                self._message = self.get_appended_msg(title, message)
+            else:
+                self._message = self._message + '\n...\n' + self.get_appended_msg(title, message)
 
     def notify(self, title, message=None, icon=None):
+        ts = time.time()
+        self._record_notification(ts, title, message, icon)
         # notice = pynotify.Notification(title, message)
         # notice.show()
-        msg = get_msg(title, message)
+        msg = get_msg(self._title, self._message)
         logger.info("NOTIFY: %s", msg)
         # import rpdb; rpdb.set_trace()
         # self.notice.update(msg)
-        if icon is not None:
-            self.notice.update(title, message)
-            pixbuf = gtk.gdk.pixbuf_new_from_file(icon)
+        self.notice.update(self._title, self._message)
+        if self._icon is not None:
+            pixbuf = None
+            if self._icon in self._icon_cache:
+                pixbuf = self._icon_cache[self._icon]
+            else:
+                pixbuf = gtk.gdk.pixbuf_new_from_file(self._icon)
             self.notice.set_icon_from_pixbuf(pixbuf)
-        else:
-            # TODO: does this get rid of the old icon?
-            # self.notice.set_icon_from_pixbuf(None)
-            self.notice.update(title, message, None)
+            if self._icon not in self._icon_cache:
+                self._icon_cache[self._icon] = pixbuf
         self.notice.show()
+        # don't incur the delay of notification time.  We want the time period to be roughly 
+        # the time at which the notification shows up until the next notification arrives 
+        # (notify-osd seems sluggish).
+        self._timestamp = time.time()
+
+    def get_appended_msg(self, title, message):
+        if message is None:
+            return title
+        elif title == self._title:
+            # same title as before, only use the message.
+            return message
+        else:
+            return title + ': ' + message
 
 class TerminalNotifier(object):
     """
@@ -53,7 +89,7 @@ def str_or_empty(x):
     return str(x)
 
 def get_msg(title, message):
-    return str_or_empty(title) + ' ' + str_or_empty(message)
+    return str_or_empty(title) + ': ' + str_or_empty(message)
 
 def notify_send(title, message=None):
     try:

@@ -61,6 +61,10 @@ DO
   - for user input dialogs
 - i don't think setting a blank icon is working.... maybe set it to a default icon (like a calm icon)
 
+- *** Add voice stuff for new commands:
+  - HELP
+  - FINISH SENDING
+
 MAYBE DO
 - add error messages for commands recognized by other applications that we aren't currently 
   talking to (may cause superfluous messages for false activation...)

@@ -1,10 +1,15 @@
-# from cmdproc import clementine, pidgin, window
-# import cmdserver
+import config
+import os
+
+ROOT = os.path.abspath(os.path.join(os.path.basename(config.__file__), '..'))
+RESOURCE = os.path.join(ROOT, 'resource')
+IMG = os.path.join(RESOURCE, 'img')
 
 DEFAULT_CMDSERVER_PORT = 2525
 DEFAULT_NOTIFY_PORT = 2526
 DEFAULT_HOST = 'localhost'
-# CMD_PROCS = [clementine.ClementineCmdProc, pidgin.PidginCmdProc, window.WindowCmdProc]
-# CMD_SERVER = cmdserver.CmdServer
 
 NOTIFY_CONNECT_RETRY_TIMEOUT = 0.5
+# If a notification arrives within this many seconds of the last, append it to the previous 
+# notification (using it's image), otherwise make a new one.
+NOTIFY_APPEND_TIME = 2

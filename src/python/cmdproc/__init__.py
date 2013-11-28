@@ -173,7 +173,7 @@ class CmdProc(object):
         old_cmd = self._macro_cmds[-1]
         del self._macro_cmds[-1]
         self._macrolock.release()
-        self.notify_server("Undo last {cmdproc} command:".format(cmdproc=self.config['program']), pretty_cmd(old_cmd[0]))
+        self.notify_server("Undo last command", pretty_cmd(old_cmd[0]))
         logger.info("%s: %s undone.", self.config['program'], old_cmd)
         # TODO: self.notifier.post("%s undone.", old_cmd)
 
@@ -257,7 +257,7 @@ class CmdProc(object):
         self._assert_recording()
         self._macro_cmds.append([args, kwargs])
         logger.info("put_cmd: args = %s, kwargs = %s, _macro_cmds = %s", args, kwargs, list(self._macro_cmds))
-        self.notify_server("Recorded command:", pretty_cmd(args))
+        self.notify_server("Recorded command", pretty_cmd(args))
         self._macrolock.release()
 
 def pretty_cmd(cmd):
