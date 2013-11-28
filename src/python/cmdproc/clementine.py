@@ -22,10 +22,12 @@ class ClementineCmdProc(cmdproc.CmdProc):
         'commands': [ 
             [['cmd', 'PLAY']],
             [['cmd', 'PAUSE']],
+            [['cmd', 'STOP']],
             [['cmd', 'VOLUME'], ['arg', 'int', "Volume Level", "A number between 0 and 100"]],
             [['cmd', 'NEXT']],
             [['cmd', 'PREVIOUS']],
             [['cmd', 'TRACK'], ['arg', 'str', "Track to Play", "The name of a track in your playlist"]],
+            [['cmd', 'PLAYING']],
         ],
         'icon': '/usr/share/icons/hicolor/scalable/apps/application-x-clementine.svg',
     }
@@ -33,10 +35,12 @@ class ClementineCmdProc(cmdproc.CmdProc):
         cmd_to_handler = {
             ("PLAY",): self.cmd_play,
             ("PAUSE",): self.cmd_pause,
+            ("STOP",): self.cmd_stop,
             ("VOLUME",): self.cmd_volume,
             ("NEXT",): self.cmd_next,
             ("PREVIOUS",): self.cmd_previous,
             ("TRACK",): self.cmd_track,
+            ("PLAYING",): self.cmd_playing,
         }
         super(ClementineCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
 
@@ -86,6 +90,12 @@ class ClementineCmdProc(cmdproc.CmdProc):
         except mydbus.WrappedCalledProcessError as e:
             logger.exception("Looks like clementine isn't running...")
 
+    def cmd_stop(self, args):
+        try:
+            return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Stop')
+        except mydbus.WrappedCalledProcessError as e:
+            logger.exception("Looks like clementine isn't running...")
+
     def cmd_next(self, args):
         try:
             return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.Next')
@@ -130,6 +140,12 @@ class ClementineCmdProc(cmdproc.CmdProc):
             if self.is_recording():
                 self.put_cmd(args, **{})
             return result
+        except mydbus.WrappedCalledProcessError as e:
+            logger.exception("Looks like clementine isn't running...")
+
+    def cmd_playing(self, args):
+        try:
+            return mydbus.send_dbus('org.mpris.clementine', '/Player', 'org.freedesktop.MediaPlayer.ShowOSD')
         except mydbus.WrappedCalledProcessError as e:
             logger.exception("Looks like clementine isn't running...")
 

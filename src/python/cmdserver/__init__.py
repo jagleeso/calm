@@ -131,6 +131,7 @@ class CmdServer(object):
     def startup_procs(self):
         self.startup_notify_server()
         self.startup_cmdprocs()
+        self.notify_server('Calm is ready', 'Say WAKEUP CALM to get started')
 
     def startup_cmdprocs(self):
         """

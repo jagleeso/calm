@@ -34,6 +34,7 @@ class PidginCmdProc(cmdproc.CmdProc):
         'commands': [ 
             [['cmd', 'MESSAGE'], ['arg', 'str', 'Conversation'], ['arg', 'str', 'Message']],
             [['cmd', 'RESPOND'], ['arg', 'str', 'Message']],
+            [['cmd', 'CONVERSATION'], ['arg', 'str', 'Conversation']],
         ],
         'icon': '/usr/share/icons/hicolor/scalable/apps/pidgin.svg',
     }
@@ -41,24 +42,34 @@ class PidginCmdProc(cmdproc.CmdProc):
         cmd_to_handler = {
             ("RESPOND",): self.cmd_reply,
             ("MESSAGE",): self.cmd_message,
+            ("CONVERSATION",): self.cmd_conversation,
         }
         super(PidginCmdProc, self).__init__(cmdserver_server, cmdserver_port, cmd_to_handler=cmd_to_handler)
 
-    def _init_conversation_index(self):
-        self.conversation_index = conversation_index()
+    def _init_active_conv_idx(self):
+        self.active_conv_idx = active_conv_idx()
+
+    def _init_online_buddy_idx(self):
+        self.online_buddy_idx = online_buddy_idx()
 
     def get_candidates(self, request):
         request_args = request[1]
         if request_args == [['MESSAGE'], 1]:
-            self._init_conversation_index()
-            if self.conversation_index is None:
+            self._init_active_conv_idx()
+            if self.active_conv_idx is None:
                 return None
-            return sorted(self.conversation_index.keys())
+            return sorted(self.active_conv_idx.keys())
+        elif request_args == [['CONVERSATION'], 1]:
+            if self.online_buddy_idx is None:
+                return None
+            return sorted(self.online_buddy_idx.keys())
 
     def start(self):
         logger.info("Starting Pidgin command processor...")
         self.connect()
         setup_dbus_handlers()
+        # this thing takes forever, so lets build it first.
+        self._init_online_buddy_idx()
         self.receive_and_dispatch_loop()
 
     def cmd_reply(self, args):
@@ -77,18 +88,27 @@ class PidginCmdProc(cmdproc.CmdProc):
             send_im(last_conversation, message[1])
 
     def cmd_message(self, args):
-        self._init_conversation_index()
+        self._init_active_conv_idx()
         cmd, receiver, message = args
         if message[1] is None:
             # notify.notify_send("Message not delivered since message was empty")
             self.notify_server("Message not delivered since message was empty")
             return
-        if self.conversation_index is None or receiver[1] not in self.conversation_index:
+        if self.active_conv_idx is None or receiver[1] not in self.active_conv_idx:
             # notify.notify_send("Message not delivered since conversation doesn't exist", receiver[1])
             self.notify_server("Message not delivered since conversation doesn't exist", receiver[1])
             return
-        convo_id = self.conversation_index[receiver[1]]
+        convo_id = self.active_conv_idx[receiver[1]]
         send_im(convo_id, message[1])
+
+    def cmd_conversation(self, args):
+        cmd, receiver = args
+        if self.online_buddy_idx is None or receiver[1] not in self.online_buddy_idx:
+            # notify.notify_send("Message not delivered since conversation doesn't exist", receiver[1])
+            self.notify_server("Couldn't make the conversation since the user doesn't exist", receiver[1])
+            return
+        account_id, buddy_name = self.online_buddy_idx[receiver[1]]
+        new_conversation(account_id, buddy_name)
 
 def receive_msg(account, sender, message, conversation, flags):
     global _last_sender
@@ -137,13 +157,13 @@ def send_im(conversation, message):
      except mydbus.WrappedCalledProcessError:
          logger.exception("Looks like pidgin isn't running")
 
-def conversation_index():
+def active_conv_idx():
     d = {}
     active_convo_ids = get_active_convo_ids()
     if active_convo_ids is None:
         return None
     for convo_id in active_convo_ids:
-        account_username = get_account_username(convo_id)
+        account_username = get_account_username_for_convo(convo_id)
         receiver_username = get_conversation_title(convo_id)
         if account_username is None or receiver_username is None:
             continue
@@ -151,6 +171,73 @@ def conversation_index():
         # key = (account_username, receiver_username)
         d[key] = convo_id
     return d
+
+def online_buddy_idx():
+    d = {}
+    account_ids = get_account_ids()
+    for account_id in account_ids:
+        account_username = get_account_username(account_id)
+        buddy_ids = get_buddy_ids(account_id)
+        for buddy_id in buddy_ids:
+            if is_buddy_online(buddy_id):
+                receiver_username = get_buddy_alias(buddy_id)
+                buddy_name = get_buddy_name(buddy_id)
+                key = "{receiver_username} - {account_username}".format(**locals())
+                d[key] = (account_id, buddy_name)
+    return d
+
+def extract_id_set(convo_id_str):
+    m = re.match(r'\[Argument: ai \{([^}]*)\}\]', convo_id_str)
+    if m is not None:
+        convo_ids = set(map(int, (id for id in re.compile(r',\s*').split(m.group(1)) if id is not '')))
+        return convo_ids
+    return None
+
+def get_account_ids():
+    return pidgin_dbus(extract_id_set, 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleAccountsGetAllActive', 
+            [], qdbus_args=['--literal'])
+
+def get_account_name(account_id):
+    def post_process(s):
+        return s.rstrip('/\n')
+    return pidgin_dbus(post_process, 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleAccountGetUsername', 
+            [account_id])
+
+def get_buddy_alias(buddy_id):
+    return pidgin_dbus(lambda s: s.rstrip(), 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleBuddyGetAlias', 
+            [buddy_id], qdbus_args=[])
+
+def get_buddy_name(buddy_id):
+    return pidgin_dbus(lambda s: s.rstrip(), 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleBuddyGetName', 
+            [buddy_id], qdbus_args=[])
+
+PURPLE_CONV_TYPE_IM = 1
+PURPLE_CONV_TYPE_CHAT = 2
+def new_conversation(account_id, buddy_name):
+    return pidgin_dbus(extract_id_set, 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleConversationNew', 
+            [PURPLE_CONV_TYPE_IM, account_id, buddy_name], qdbus_args=['--literal'])
+
+def get_buddy_ids(account_id):
+    return pidgin_dbus(extract_id_set, 
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleFindBuddies', 
+            [account_id, ''], qdbus_args=['--literal'])
+
+def is_buddy_online(buddy_id):
+    return pidgin_dbus(lambda s: bool(int(s.rstrip())),
+            'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
+            'im.pidgin.purple.PurpleInterface.PurpleBuddyIsOnline', 
+            [buddy_id], qdbus_args=[])
 
 def get_active_convo_ids():
     """
@@ -160,13 +247,7 @@ def get_active_convo_ids():
     qdbus --literal im.pidgin.purple.PurpleService /im/pidgin/purple/PurpleObject im.pidgin.purple.PurpleInterface.PurpleGetConversations
     [Argument: ai {14537}]
     """
-    def convo_id_set(convo_id_str):
-        m = re.match(r'\[Argument: ai \{([^}]*)\}\]', convo_id_str)
-        if m is not None:
-            convo_ids = set(map(int, (id for id in re.compile(r',\s*').split(m.group(1)) if id is not '')))
-            return convo_ids
-        return None
-    return pidgin_dbus(convo_id_set, 
+    return pidgin_dbus(extract_id_set, 
             'im.pidgin.purple.PurpleService', '/im/pidgin/purple/PurpleObject', 
             'im.pidgin.purple.PurpleInterface.PurpleGetConversations', 
             [], qdbus_args=['--literal'])
@@ -185,7 +266,7 @@ def get_account_id(convo_id):
             'im.pidgin.purple.PurpleInterface.PurpleConversationGetAccount',
             [convo_id])
 
-def get_account_username(convo_id):
+def get_account_username_for_convo(convo_id):
     """
     e.g.
     $ qdbus im.pidgin.purple.PurpleService /im/pidgin/purple/PurpleObject im.pidgin.purple.PurpleInterface.PurpleAccountGetUsername 946
@@ -201,6 +282,9 @@ def get_account_username(convo_id):
     account_id = get_account_id(convo_id)
     if account_id is None:
         return None
+    return get_account_username(account_id)
+
+def get_account_username(account_id):
     def extract_account_username(account):
         """
         Given:
