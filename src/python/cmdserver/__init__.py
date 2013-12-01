@@ -296,7 +296,7 @@ class CmdServer(object):
                 current_cmdproc = current_program
                 # the user is switched to the program and commanding it directly (when they lose focus, 
                 # they probably expect to continue speaking to that application).
-                self._last_focussed = current_program
+                # self._last_focussed = current_program
             elif self._last_focussed is not None:
                 # otherwise use the program that last had activity
                 current_cmdproc = self._last_focussed
@@ -335,6 +335,9 @@ class CmdServer(object):
         if current_cmdproc is None:
             self.notify_server('Commands', server_str)
         else:
+            # if the user is asking for help, it may be that they're getting help for the current window.  
+            # In that case, they probably expect to switch focus that that application
+            self._last_focussed = current_cmdproc
             cmdproc_cmds = extract_cmds(self._cmdproc_config[current_cmdproc]['commands'])
             cmdproc_str = config_to_cmd_str(cmdproc_cmds)
             self.notify_server_for_cmdproc(
@@ -528,6 +531,14 @@ class CmdDFA(object):
                 self._cmdserver._receiving_cmdproc,
                 "Sending to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
 
+    def switch_to_sending(self, cmdproc):
+        assert self._is_sending and self._cmdserver._is_sending
+        self._cmdserver._receiving_cmdproc = cmdproc
+
+        self._cmdserver.notify_server_for_cmdproc(
+                self._cmdserver._receiving_cmdproc,
+                "Sending to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+
     def done_sending(self):
         self._is_sending = False
         self._cmdserver._is_sending = False
@@ -637,12 +648,15 @@ class CmdDFA(object):
                 # index of cmdproc
                 i = len(cmd) - 1
                 cmdproc = cmd[i][1].lower()
-                if cmdproc != self._cmdserver._receiving_cmdproc or len(words) == i + 1:
-                    # presume that if the user was trying a SEND, they're commited to it
-                    callback()
-                    return
-                # the user might not have not have noticed their switch to sending to the application, 
-                # so they're trying the whole "SEND <PROGRAM> cmd" phrase. Extract it and send it off.
+
+                if cmdproc != self._cmdserver._receiving_cmdproc:
+                    # Sometimes the user will not notice they've switched to sending to a 
+                    # cmdproc, so let them switch.
+                    #
+                    # Otherwise, the user might not have not have noticed their switch to 
+                    # sending to the application, so they're trying the whole "SEND 
+                    # <PROGRAM> cmd" phrase. Extract it and send it off.
+                    self.switch_to_sending(cmdproc)
                 cmdproc_cmd = words[i + 1:]
             else:
                 cmdproc_cmd = words
@@ -734,35 +748,46 @@ class CmdDFA(object):
             callback()
             return
 
-        def send_cmd_to_cmdproc(cmdproc):
+        def cmdproc_and_cmdserver_err(e):
+            if type(e) == BadCmdProcCommandInput:
+                err(e)
+            else:
+                err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
+        def send_cmd_to_cmdproc(cmdproc, err):
             """
-            Sending a command to a command processor (either the current application, or an application 
+            Sending a command to a command processor:
+            - try the current application with priority if it is a command processor
+            - otherwise, send to the last focussed application
+            (either the current application, or an application 
             we're talking to).
             """
             def send_cmd_cb(cmd):
                 self._cmdserver.send_cmd(cmdproc, cmd)
                 callback()
-            def cmdproc_and_cmdserver_err(e):
-                if type(e) == BadCmdProcCommandInput:
-                    err(e)
-                else:
-                    err(NeitherCmdProcOrServerCommand(e, BadCmdServerCommand(cmd, words[0])))
-            self.cmdproc_cmd(cmdproc, words, send_cmd_cb, cmdproc_and_cmdserver_err)
+            self.cmdproc_cmd(cmdproc, words, send_cmd_cb, err)
 
         # See if we're talking to a specific command processor
         if self._talking_to_cmdproc:
-            send_cmd_to_cmdproc(self._cmdserver._receiving_cmdproc)
+            send_cmd_to_cmdproc(self._cmdserver._receiving_cmdproc, cmdproc_and_cmdserver_err)
             return
 
-        # Try sending the command to the currently active process to see if it can handle it.
-        # current_cmdproc = window.get_current_program()
-        current_cmdproc = self._cmdserver.get_current_cmdproc()
-        if current_cmdproc is None:
-            # Current active process has no command processor; interpret as a bad server command.
-            err(BadCmdServerCommand(cmd, words[0]))
+        # Sending a command to a command processor:
+        # - try the current application with priority if it is a command processor
+        # - otherwise, send to the last focussed application
+
+        def send_to_last_focussed(*args):
+            if self._cmdserver._last_focussed is not None:
+                send_cmd_to_cmdproc(self._cmdserver._last_focussed, cmdproc_and_cmdserver_err)
+            else:
+                # No command processor available; interpret as a bad server command.
+                err(BadCmdServerCommand(cmd, words[0]))
+        current_window = window.get_current_program()
+        if current_window in self._cmdserver._cmdproc_config:
+            send_cmd_to_cmdproc(current_window, send_to_last_focussed)
             return
-        send_cmd_to_cmdproc(current_cmdproc)
-        return
+        else:
+            send_to_last_focussed()
+            return
 
     def cmdproc_cmd(self, cmdproc, words, cmd_callback, err):
         try:
@@ -787,7 +812,7 @@ class CmdDFA(object):
                 return argcmd[2]
         def handle_arg(argspec, result, i):
             def arg_cb(arg):
-                if isinstance(arg, ValueError):
+                if isinstance(arg, ValueError) or isinstance(arg, TypeError):
                     err(BadCmdProcCommandInput(cmdproc, cmd, w, arg_description(argspec)))
                 else:
                     cmd.append(arg)
@@ -929,7 +954,7 @@ class CmdDFA(object):
             try:
                 integer = int(string)
                 return callback(integer)
-            except ValueError as e:
+            except (ValueError, TypeError) as e:
                 return callback(e)
         self._string_input_handler.ask_for_string(description, list(candidates) if candidates is not None else None, self._stop_asking_wrapper(int_callback_wrapper))
 
