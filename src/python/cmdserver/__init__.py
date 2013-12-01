@@ -51,6 +51,8 @@ class CmdServer(object):
             [['cmd', 'TALK'], ['arg', 'str'], ['cmdproc', 1]],
             [['cmd', 'FINISH'], ['cmd', 'TALKING']],
             [['cmd', 'HELP']],
+            [['cmd', 'TALK'], ['cmd', 'TO'], ['cmdproc', 1]],
+            [['cmd', 'SEND'], ['cmd', 'TO'], ['cmdproc', 1]],
         ],
         'icon': os.path.join(config.IMG, 'calm.svg'),
     }
@@ -84,6 +86,9 @@ class CmdServer(object):
 
         self._receiving_cmdproc = None
         self._prev_receiving_cmdproc = None
+
+    def cmdprocs(self):
+        return self._cmdproc_config.keys()
 
     def sleep(self):
         self.listening = False
@@ -456,6 +461,8 @@ class CmdDFA(object):
         self._is_sending = False
         self._talking_to_cmdproc = False
 
+        self._cmdproc_delims = set(cmdproc.upper() for cmdproc in self._cmdserver.cmdprocs())
+
     def get_ready_to_send(self, cmdproc):
         self._is_sending = True
         self._cmdserver._is_sending = True
@@ -464,6 +471,10 @@ class CmdDFA(object):
         assert not self._talking_to_cmdproc or self._cmdserver._prev_receiving_cmdproc is None
         self._cmdserver._prev_receiving_cmdproc = self._cmdserver._receiving_cmdproc
         self._cmdserver._receiving_cmdproc = cmdproc
+
+        self._cmdserver.notify_server_for_cmdproc(
+                self._cmdserver._receiving_cmdproc,
+                "Sending to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
 
     def done_sending(self):
         self._is_sending = False
@@ -518,11 +529,20 @@ class CmdDFA(object):
                 return
 
         def is_cmd(*cmd_strs):
-            if words[0:len(cmd_strs)] == list(cmd_strs):
-                for cmd_str in cmd_strs:
-                    cmd.append(['cmd', cmd_str])
-                return True
-            return False
+            if len(words) < len(cmd_strs):
+                return False
+            new_cmd = []
+            for i in range(len(cmd_strs)):
+                if type(cmd_strs[i]) == str:
+                    if words[i] != cmd_strs[i]:
+                        return False
+                    new_cmd.append(['cmd', words[i]])
+                elif cmd_strs[i] == ['cmdproc']:
+                    if words[i] not in self._cmdproc_delims:
+                        return False
+                    new_cmd.append(['cmdproc', words[i]])
+            cmd.extend(new_cmd)
+            return True
 
         if not self._cmdserver.listening:
             if is_cmd('WAKEUP', 'CALM'):
@@ -572,13 +592,19 @@ class CmdDFA(object):
                 cb(cmdproc)
             self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
 
-        if is_cmd('TALK'):
-            def talk_to_cb(cmdproc):
-                if self._talking_to_cmdproc:
-                    # We're already talking to a cmdproc; switch to talking to this cmdproc
-                    self.done_talking(self._cmdserver._receiving_cmdproc)
-                self.get_ready_to_talk(cmdproc)
-                callback()
+        def talk_to_cb(cmdproc):
+            if self._talking_to_cmdproc:
+                # We're already talking to a cmdproc; switch to talking to this cmdproc
+                self.done_talking(self._cmdserver._receiving_cmdproc)
+            self.get_ready_to_talk(cmdproc)
+            callback()
+        def send_cb(cmdproc):
+            self.get_ready_to_send(cmdproc)
+            callback()
+        if is_cmd('TALK', 'TO', ['cmdproc']):
+            talk_to_cb(cmd[2][1].lower())
+            return
+        elif is_cmd('TALK'):
             ask_for_program(talk_to_cb)
             return
         elif is_cmd('FINISH', 'TALKING'):
@@ -586,10 +612,10 @@ class CmdDFA(object):
                 self.done_talking(self._cmdserver._receiving_cmdproc)
             callback()
             return
+        elif is_cmd('SEND', 'TO', ['cmdproc']):
+            send_cb(cmd[2][1].lower())
+            return
         elif is_cmd('SEND'):
-            def send_cb(cmdproc):
-                self.get_ready_to_send(cmdproc)
-                callback()
             ask_for_program(send_cb)
             return
         elif is_cmd('RECORD'):

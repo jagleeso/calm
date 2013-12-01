@@ -22,7 +22,8 @@ class ClementineCmdProc(cmdproc.CmdProc):
         'commands': [ 
             [['cmd', 'PLAY']],
             [['cmd', 'PAUSE']],
-            [['cmd', 'STOP']],
+            # gets confused a lot with TALK, disable for now
+            # [['cmd', 'STOP']],
             [['cmd', 'VOLUME'], ['arg', 'int', "Volume Level", "A number between 0 and 100"]],
             [['cmd', 'NEXT']],
             [['cmd', 'PREVIOUS']],
@@ -35,7 +36,7 @@ class ClementineCmdProc(cmdproc.CmdProc):
         cmd_to_handler = {
             ("PLAY",): self.cmd_play,
             ("PAUSE",): self.cmd_pause,
-            ("STOP",): self.cmd_stop,
+            # ("STOP",): self.cmd_stop,
             ("VOLUME",): self.cmd_volume,
             ("NEXT",): self.cmd_next,
             ("PREVIOUS",): self.cmd_previous,

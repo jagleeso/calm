@@ -1,5 +1,6 @@
 BOTTOM - Main 
 CALM - Main 
+CLEMENTINE - Main 
 CONVERSATION - Main 
 FINISH - Main 
 HELP - Main 
@@ -9,6 +10,8 @@ MAXIMIZE - Main
 MESSAGE - Main 
 NEXT - Main 
 PAUSE - Main 
+pronounce: verbosity is 1
+PIDGIN - Morpheme: PIDGIN 
 PLAY - Main 
 PLAYING - Main 
 PREVIOUS - Main 
@@ -19,12 +22,13 @@ RIGHT - Main
 SEND - Main 
 SENDING - Main 
 SLEEP - Main 
-STOP - Main 
 TALK - Main 
 TALKING - Main 
+TO - Main 
 TRACK - Main 
 UNDO - Main 
 UPPER - Main 
 VOLUME - Main 
 WAKEUP - Main 
+WINDOW - Main 
 

@@ -9,6 +9,12 @@
 <s> TALK </s>
 <s> FINISH TALKING </s>
 <s> HELP </s>
+<s> TALK TO CLEMENTINE </s>
+<s> TALK TO PIDGIN </s>
+<s> TALK TO WINDOW </s>
+<s> SEND TO CLEMENTINE </s>
+<s> SEND TO PIDGIN </s>
+<s> SEND TO WINDOW </s>
 <s> LEFT </s>
 <s> RIGHT </s>
 <s> MAXIMIZE </s>
@@ -21,7 +27,6 @@
 <s> CONVERSATION </s>
 <s> PLAY </s>
 <s> PAUSE </s>
-<s> STOP </s>
 <s> VOLUME </s>
 <s> NEXT </s>
 <s> PREVIOUS </s>

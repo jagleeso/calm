@@ -22,11 +22,12 @@ logger = logging.getLogger(__name__)
 # Keeping track of pidgen messenger's state based on received messages.
 
 # Mutex over all messenger state.
-# _state_lock = Lock()
+_state_lock = Lock()
 # Who last sent us a message (used as a received for a RESPOND command)?
 # _last_sender = None
 _last_sender = Array('c', 1024, lock=True)
 _last_conversation = Value('i', lock=True)
+_last_conversation_created = Value('i', lock=True)
 
 class PidginCmdProc(cmdproc.CmdProc):
     config = {
@@ -75,11 +76,12 @@ class PidginCmdProc(cmdproc.CmdProc):
     def cmd_reply(self, args):
         last_sender = None
         last_sender = _last_sender.value
-        logger.info("Got RESPOND command: %s.  Last sender was %s", args, last_sender)
         cmd, message = args
 
         last_sender = _last_sender.value
         last_conversation = _last_conversation.value
+        logger.info("Got RESPOND command: %s.  Last sender was %s. Last conversation was %s", args, 
+                last_sender, last_conversation)
         if last_sender == '':
             logger.info("There is no last sender... ignoring RESPOND and notifying")
             # notify.notify_send("Message not received", "no one to reply to")
@@ -111,12 +113,25 @@ class PidginCmdProc(cmdproc.CmdProc):
         new_conversation(account_id, buddy_name)
 
 def receive_msg(account, sender, message, conversation, flags):
+    logger.info("receive_msg DBUS: account=%s, sender=%s, message=%s, conversation=%s, flags=%s", account, sender, message, conversation, flags)
     global _last_sender
     logger.info("receive_msg DBUS: %s said \"%s\", old _last_sender == %s", sender, message, _last_sender.value)
     logger.info("receive_msg DBUS: conversation == %s", conversation)
 
+    _state_lock.acquire()
     _last_sender.value = sender
     _last_conversation.value = conversation
+    _state_lock.release()
+
+def conversation_created(conversation):
+    _state_lock.acquire()
+    _last_conversation_created.value = conversation
+    if _last_conversation.value == 0:
+        # TODO: but 2 convos are being created when i talk to myself...
+        logger.info("last conversation was 0, hack it to be %s", conversation)
+        _last_conversation.value = conversation
+    _state_lock.release()
+
 
 def setup_dbus_handlers():
     """
@@ -129,6 +144,9 @@ def setup_dbus_handlers():
         bus.add_signal_receiver(receive_msg,
                                 dbus_interface="im.pidgin.purple.PurpleInterface",
                                 signal_name="ReceivedImMsg")
+        bus.add_signal_receiver(conversation_created,
+                                dbus_interface="im.pidgin.purple.PurpleInterface",
+                                signal_name="ConversationCreated")
 
         loop = gobject.MainLoop()
         logger.info("Run the loop....")
