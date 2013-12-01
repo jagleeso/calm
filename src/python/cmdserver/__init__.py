@@ -52,7 +52,7 @@ class CmdServer(object):
             [['cmd', 'FINISH'], ['cmd', 'TALKING']],
             [['cmd', 'HELP']],
             [['cmd', 'TALK'], ['cmd', 'TO'], ['cmdproc', 1]],
-            [['cmd', 'SEND'], ['cmd', 'TO'], ['cmdproc', 1]],
+            [['cmd', 'SEND'], ['cmdproc', 1]],
         ],
         'icon': os.path.join(config.IMG, 'calm.svg'),
     }
@@ -269,27 +269,29 @@ class CmdServer(object):
     def cmd_help(self):
         def config_to_cmd_str(cmds):
             return ', '.join(sorted(
-                ' '.join(cmd_delims) for cmd_delims in cmds))
+                ' '.join(cmd_delims) for cmd_delims in sorted(cmds)))
 
         cmdserver_cmds = None
         if self._is_sending:
             cmdserver_cmds = [
-                    ['WAKEUP', 'CALM'],
-                    ['FINISH', 'SENDING'],
-                    ['SLEEP'],
-                    ['HELP'],
+                    ('WAKEUP', 'CALM'),
+                    ('FINISH', 'SENDING'),
+                    ('SLEEP',),
+                    ('HELP',),
                     ]
         else:
             cmdserver_cmds = extract_cmds(self.config['commands'])
-            cmdserver_cmds.remove(['FINISH', 'SENDING'])
+            cmdserver_cmds.remove(('FINISH', 'SENDING'))
+            # remove redundant commands
+            cmdserver_cmds.remove(('TALK', 'TO'))
             if not self._is_talking:
-                cmdserver_cmds.remove(['FINISH', 'TALKING'])
+                cmdserver_cmds.remove(('FINISH', 'TALKING'))
 
             if self.is_recording:
-                cmdserver_cmds.remove(['RECORD'])
+                cmdserver_cmds.remove(('RECORD',))
             else:
-                cmdserver_cmds.remove(['FINISH', 'MACRO'])
-                cmdserver_cmds.remove(['UNDO'])
+                cmdserver_cmds.remove(('FINISH', 'MACRO'))
+                cmdserver_cmds.remove(('UNDO',))
         server_str = config_to_cmd_str(cmdserver_cmds)
 
         current_cmdproc = None
@@ -307,7 +309,7 @@ class CmdServer(object):
             cmdproc_str = config_to_cmd_str(cmdproc_cmds)
             self.notify_server_for_cmdproc(
                     current_cmdproc,
-                    'Commands for {program}:'.format(program=current_cmdproc), 
+                    'Commands for {program}'.format(program=current_cmdproc), 
                     cmdproc_str + '\n...\n' + server_str)
 
 def parse_cmd(words, serverproc_cmds, cmdproc_cmds, cmd_delimeters):
@@ -479,14 +481,18 @@ class CmdDFA(object):
     def done_sending(self):
         self._is_sending = False
         self._cmdserver._is_sending = False
+        was_sending_to = self._cmdserver._receiving_cmdproc
         self._cmdserver._receiving_cmdproc = self._cmdserver._prev_receiving_cmdproc 
         self._cmdserver._prev_receiving_cmdproc = None
 
-        # If we were talking before we sent this command, remind the user of the mode switch
         if self._cmdserver._is_talking:
+            # If we were talking before we sent this command, remind the user of the mode switch
             self._cmdserver.notify_server_for_cmdproc(
                     self._cmdserver._receiving_cmdproc,
                     "Talking to {cmdproc} again".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        else:
+            # the user is aborting a send; let them know they're no longer sending
+            self._cmdserver.notify_server_for_cmdproc(was_sending_to, "No longer sending")
 
     def get_ready_to_talk(self, cmdproc):
         self._talking_to_cmdproc = True 
@@ -549,6 +555,10 @@ class CmdDFA(object):
                 self._cmdserver.wakeup()
                 callback()
                 return
+            elif is_cmd('HELP'):
+                self._cmdserver.notify_server('Calm is sleeping', 'Say WAKEUP CALM to get started')
+                callback()
+                return
             else:
                 # We're ignoring input since we're sleeping
                 callback()
@@ -565,15 +575,27 @@ class CmdDFA(object):
         # TODO: add try / except and then handle current application in focus
         # logger.info("is sending?? %s", self._is_sending)
         if self._is_sending:
+            cmdproc_cmd = None
             if is_cmd('FINISH', 'SENDING'):
                 self.done_sending()
                 callback()
                 return
+            elif is_cmd('SEND', ['cmdproc']):
+                cmdproc = cmd[1][1].lower()
+                if cmdproc != self._cmdserver._receiving_cmdproc or len(words) == 2:
+                    # presume that if the user was trying a SEND, they're commited to it
+                    callback()
+                    return
+                # the user might not have not have noticed their switch to sending to the application, 
+                # so they're trying the whole "SEND <PROGRAM> cmd" phrase. Extract it and send it off.
+                cmdproc_cmd = words[2:]
+            else:
+                cmdproc_cmd = words
             def send_cmd_cb(cmd):
                 self._cmdserver.send_cmd(self._cmdserver._receiving_cmdproc, cmd)
                 self.done_sending()
                 callback()
-            self.cmdproc_cmd(self._cmdserver._receiving_cmdproc, words, send_cmd_cb, err)
+            self.cmdproc_cmd(self._cmdserver._receiving_cmdproc, cmdproc_cmd, send_cmd_cb, err)
             return
 
         if len(words) < 1:
@@ -612,8 +634,22 @@ class CmdDFA(object):
                 self.done_talking(self._cmdserver._receiving_cmdproc)
             callback()
             return
-        elif is_cmd('SEND', 'TO', ['cmdproc']):
-            send_cb(cmd[2][1].lower())
+        elif is_cmd('SEND', ['cmdproc']):
+            cmdproc = cmd[1][1].lower()
+            if len(words) == 2:
+                # the user only specified the command
+                send_cb(cmdproc)
+            else:
+                # the user may be trying to send a command all in one sentence; try to send everything 
+                # after SEND TO <cmdproc> to the cmdproc, but if it rejects, fall back to the SEND TO 
+                # <cmdproc>
+                def fallback(cmdproc_error):
+                    send_cb(cmdproc)
+                def send_cmd_cb(cmdproc_cmd):
+                    # no need to notify of the receiving process, or use done_sending 
+                    self._cmdserver.send_cmd(cmdproc, cmdproc_cmd)
+                    callback()
+                self.cmdproc_cmd(cmdproc, words[2:], send_cmd_cb, err=fallback)
             return
         elif is_cmd('SEND'):
             ask_for_program(send_cb)

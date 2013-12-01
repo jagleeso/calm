@@ -239,9 +239,9 @@ class CmdProc(object):
 
         name = self._macroname.value
         cmds = list(self._macro_cmds)
-        if len(cmds) != 0:
-            # Otherwise the user recorded an empty macro; ignore it.
-            self._macros[name] = cmds
+        # if len(cmds) != 0:
+        # Otherwise the user recorded an empty macro; ignore it.
+        self._macros[name] = cmds
 
         self._macro_cmds[:] = []
         self._macroname.value = ''
@@ -280,11 +280,11 @@ def cmdproc_main(cmdproc_class, parser=None):
     return (args, processor)
 
 def extract_cmds(cmd_config):
-    cmd_delims = []
+    cmd_delims = set()
     for cmd in cmd_config:
         cmd_delimiters = []
         for cmdarg in cmd:
             if cmdarg[0] == 'cmd':
                 cmd_delimiters.append(cmdarg[1])
-        cmd_delims.append(cmd_delimiters)
+        cmd_delims.add(tuple(cmd_delimiters))
     return cmd_delims
