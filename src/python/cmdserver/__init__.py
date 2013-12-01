@@ -10,11 +10,13 @@ import traceback
 import errno 
 import time
 import os
+import fcntl
 
 from cmdproc import window, extract_cmds
 
 import config
 import notify
+import context
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class CmdServer(object):
             [['cmd', 'HELP']],
             [['cmd', 'TALK'], ['cmd', 'TO'], ['cmdproc', 1]],
             [['cmd', 'SEND'], ['cmdproc', 1]],
+            [['cmd', 'SEND'], ['cmd', 'TO'], ['cmdproc', 1]],
         ],
         'icon': os.path.join(config.IMG, 'calm.svg'),
     }
@@ -86,6 +89,7 @@ class CmdServer(object):
 
         self._receiving_cmdproc = None
         self._prev_receiving_cmdproc = None
+        self._last_focussed = None
 
     def cmdprocs(self):
         return self._cmdproc_config.keys()
@@ -104,6 +108,8 @@ class CmdServer(object):
     def send_cmd(self, program, cmd):
         cmdproc_socket = self._program_to_socket[program]
         send_cmd(cmdproc_socket, cmd)
+        # update our focus to the last program we sent a message to
+        self._last_focussed = program
         if self.is_recording:
             response = recv_response(cmdproc_socket)
             if response == ['response', 'recorded']:
@@ -136,6 +142,8 @@ class CmdServer(object):
     def startup_procs(self):
         self.startup_notify_server()
         self.startup_cmdprocs()
+        self.startup_context()
+        # context.start_listening(self.notify_socket)
         self.notify_server('Calm is ready', 'Say WAKEUP CALM to get started')
 
     def startup_cmdprocs(self):
@@ -158,6 +166,18 @@ class CmdServer(object):
         (s, pid) = fork_notify_server(self.notifier_path, self.notifier, config.DEFAULT_NOTIFY_PORT)
         self.notify_socket = s 
         self.notify_server_pid = pid
+
+    def startup_context(self):
+        (s, pid) = fork_context_server(context.__file__.rstrip('c'), self.port)
+        self.context_socket = s 
+        self.context_server_pid = pid
+
+    def get_last_focussed_cmdproc(self):
+        focus = recv_focus(self.context_socket)
+        if focus is not None:
+            # There's been activity since we last checked
+            self._last_focussed = focus[1]
+        return self._last_focussed
 
     def notify_server(self, *args, **kwargs):
         kwargs['icon'] = self.config['icon']
@@ -258,13 +278,29 @@ class CmdServer(object):
                 pass
             logger.exception(e.message)
             if type(e) == BadCmdProcCommandInput:
-                # import rpdb; rpdb.set_trace()
                 cmd_str = ' '.join(cmdarg[1] for cmdarg in e.cmd_so_far)
                 self.notify_server_for_cmdproc(e.cmdproc,
                         "Bad input for {cmd_str}:".format(**locals()), 
                         "expected {descr}".format(descr=e.arg_description.lower()))
             callback()
         self._cmd_dfa.cmd(cmd_strs, callback, err)
+
+    def get_current_cmdproc(self):
+        current_cmdproc = None
+        if self._is_sending or self._is_talking:
+            current_cmdproc = self._receiving_cmdproc
+        else:
+            current_program = window.get_current_program()
+            if current_program in self._cmdproc_config:
+                # current window takes priority.
+                current_cmdproc = current_program
+                # the user is switched to the program and commanding it directly (when they lose focus, 
+                # they probably expect to continue speaking to that application).
+                self._last_focussed = current_program
+            elif self._last_focussed is not None:
+                # otherwise use the program that last had activity
+                current_cmdproc = self._last_focussed
+        return current_cmdproc
 
     def cmd_help(self):
         def config_to_cmd_str(cmds):
@@ -294,13 +330,7 @@ class CmdServer(object):
                 cmdserver_cmds.remove(('UNDO',))
         server_str = config_to_cmd_str(cmdserver_cmds)
 
-        current_cmdproc = None
-        if self._is_sending or self._is_talking:
-            current_cmdproc = self._receiving_cmdproc
-        else:
-            current_program = window.get_current_program()
-            if current_program in self._cmdproc_config:
-                current_cmdproc = current_program
+        current_cmdproc = self.get_current_cmdproc()
 
         if current_cmdproc is None:
             self.notify_server('Commands', server_str)
@@ -449,6 +479,26 @@ def fork_notify_server(notifier_path, notifier_type, notifier_port):
     logger.info("%s notify server \"%s\" (PID: %s) connected", notifier_type, notifier_path, pid)
     return (notifier_socket, pid)
 
+def fork_context_server(context_path, cmdserver_port):
+    try:
+        pid = os.fork()
+    except OSError, e:
+        sys.exit(1)
+    if pid == 0:
+        os.execv(context_path, [context_path, '--server', config.DEFAULT_HOST, '--port', str(cmdserver_port)])
+    while True:
+        try: 
+            context_socket = context.context_server_connection(config.DEFAULT_HOST, config.DEFAULT_CONTEXT_PORT)
+            break
+        except (OSError, socket.error) as e:
+            if e.errno != errno.ECONNREFUSED:
+                raise
+        time.sleep(config.NOTIFY_CONNECT_RETRY_TIMEOUT)
+    fcntl.fcntl(context_socket, fcntl.F_SETFL, os.O_NONBLOCK)
+            
+    logger.info("context server \"%s\" (PID: %s) connected", context_path, pid)
+    return (context_socket, pid)
+
 class CmdDFA(object):
     def __init__(self, cmdserver, cmdproc_cmds):
         self._cmdserver = cmdserver
@@ -518,6 +568,9 @@ class CmdDFA(object):
         When receiving a bad command, an exception will be called as an argument to err.
         """
 
+        last_focussed = self._cmdserver.get_last_focussed_cmdproc()
+        logger.info("LAST FOCUSSED: %s", last_focussed)
+
         if self._asking_for_input:
             logger.info("We're asking the user for input, hold off on commands for now...")
             return
@@ -580,15 +633,17 @@ class CmdDFA(object):
                 self.done_sending()
                 callback()
                 return
-            elif is_cmd('SEND', ['cmdproc']):
-                cmdproc = cmd[1][1].lower()
-                if cmdproc != self._cmdserver._receiving_cmdproc or len(words) == 2:
+            elif is_cmd('SEND', ['cmdproc']) or is_cmd('SEND', 'TO', ['cmdproc']):
+                # index of cmdproc
+                i = len(cmd) - 1
+                cmdproc = cmd[i][1].lower()
+                if cmdproc != self._cmdserver._receiving_cmdproc or len(words) == i + 1:
                     # presume that if the user was trying a SEND, they're commited to it
                     callback()
                     return
                 # the user might not have not have noticed their switch to sending to the application, 
                 # so they're trying the whole "SEND <PROGRAM> cmd" phrase. Extract it and send it off.
-                cmdproc_cmd = words[2:]
+                cmdproc_cmd = words[i + 1:]
             else:
                 cmdproc_cmd = words
             def send_cmd_cb(cmd):
@@ -634,9 +689,11 @@ class CmdDFA(object):
                 self.done_talking(self._cmdserver._receiving_cmdproc)
             callback()
             return
-        elif is_cmd('SEND', ['cmdproc']):
-            cmdproc = cmd[1][1].lower()
-            if len(words) == 2:
+        elif is_cmd('SEND', ['cmdproc']) or is_cmd('SEND', 'TO', ['cmdproc']):
+            # index of cmdproc
+            i = len(cmd) - 1
+            cmdproc = cmd[i][1].lower()
+            if len(words) == i + 1:
                 # the user only specified the command
                 send_cb(cmdproc)
             else:
@@ -649,7 +706,7 @@ class CmdDFA(object):
                     # no need to notify of the receiving process, or use done_sending 
                     self._cmdserver.send_cmd(cmdproc, cmdproc_cmd)
                     callback()
-                self.cmdproc_cmd(cmdproc, words[2:], send_cmd_cb, err=fallback)
+                self.cmdproc_cmd(cmdproc, words[i + 1:], send_cmd_cb, err=fallback)
             return
         elif is_cmd('SEND'):
             ask_for_program(send_cb)
@@ -698,7 +755,8 @@ class CmdDFA(object):
             return
 
         # Try sending the command to the currently active process to see if it can handle it.
-        current_cmdproc = window.get_current_program()
+        # current_cmdproc = window.get_current_program()
+        current_cmdproc = self._cmdserver.get_current_cmdproc()
         if current_cmdproc is None:
             # Current active process has no command processor; interpret as a bad server command.
             err(BadCmdServerCommand(cmd, words[0]))

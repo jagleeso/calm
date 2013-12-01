@@ -1,6 +1,10 @@
 import json
 import struct
 import logging
+import socket
+import fcntl, os
+import errno
+
 from StringIO import StringIO
 
 import logconfig
@@ -21,6 +25,8 @@ def is_response(response):
 def is_notification(notification):
     return type(notification) == list and notification[0] == 'notification' and \
             len(notification) == 4 and notification[1] is not None
+def is_focus(focus):
+    return type(focus) == list and focus[0] == 'focus'
 
 def _check_valid_cmd(cmd):
     """
@@ -55,6 +61,12 @@ def _check_valid_notification(notification):
     """
     return is_notification(notification)
 
+def _check_valid_focus(focus):
+    """
+    ['focus', 'clementine']  
+    """
+    return is_focus(focus)
+
 # cmdserver stuff
 
 def send_cmd(socket, cmd):
@@ -78,6 +90,30 @@ def recv_response(socket):
     response = deserialize_msg(msg)
     assert _check_valid_response(response)
     return response
+
+
+def recv_focus(s):
+    """
+    Receive the latest focus event.
+    """
+    msg = None
+    try:
+        while True:
+            new_msg = recv_nonblocking(s)
+            if new_msg is None:
+                # no more focus activity pending
+                break
+            msg = new_msg
+    except socket.error as e:
+        err = e.args[0]
+        if not(err == errno.EAGAIN or err == errno.EWOULDBLOCK):
+            raise e
+        # No data available
+    if msg is None:
+        return None
+    focus = deserialize_msg(msg)
+    assert _check_valid_focus(focus)
+    return focus
 
 # cmdproc stuff
 
@@ -119,6 +155,13 @@ def recv_notification(socket):
     assert _check_valid_notification(notification)
     return notification
 
+# context stuff
+
+def send_focus(socket, focus):
+    assert _check_valid_focus(focus)
+    msg = serialize_msg(focus)
+    return send(socket, msg)
+
 """
 Use a dumb protocol for sending fixed size messages:
 1. send size of msg (4 bytes)
@@ -139,7 +182,9 @@ def send(socket, msg):
 def recv(socket):
     packed = socket.recv(MSG_SIZE_BYTES)
     length = struct.unpack("I", packed)[0]
+    return recv_len(socket, length)
 
+def recv_len(socket, length):
     buf = StringIO()
     l = 0
     while l != length:
@@ -150,6 +195,20 @@ def recv(socket):
     msg = buf.getvalue()
     logger.info("RECV %s: %s", length, msg)
     return msg
+
+def recv_nonblocking(s):
+    packed = s.recv(MSG_SIZE_BYTES)
+    length = struct.unpack("I", packed)[0]
+
+    # we got a length; set it to blocking
+    flags = fcntl.fcntl(s, fcntl.F_GETFL)
+    fcntl.fcntl(s, fcntl.F_SETFL, flags & (~ os.O_NONBLOCK))
+
+    try:
+        return recv_len(s, length)
+    finally:
+        # reset it back to non blocking
+        fcntl.fcntl(s, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
 def recv_msg(socket):
     return deserialize_msg(recv(socket))

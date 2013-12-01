@@ -214,6 +214,9 @@ def notify_server_connection(notify_server, notify_port):
 def notify_server(self, title, msg=None, icon=None):
     message.send_notification(self.notify_socket, ['notification', title, msg, icon])
 
+def notify_server_func(notify_socket, title, msg=None, icon=None):
+    message.send_notification(notify_socket, ['notification', title, msg, icon])
+
 def main():
     parser = argparse.ArgumentParser(description="Notification server (listen for notifications then publish them)")
     parser.add_argument('--port', type=int, default=config.DEFAULT_NOTIFY_PORT)

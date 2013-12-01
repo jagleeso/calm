@@ -268,6 +268,15 @@ def pretty_cmd(cmd):
             return str(cmdarg)
     return " ".join(cmd_arg_as_str(c) for c in cmd)
 
+
+def cmdserver_args(parser=None):
+    if parser is None:
+        parser = argparse.ArgumentParser(description="A command processor.")
+    parser.add_argument('--server', default="localhost")
+    parser.add_argument('--port', type=int, default=config.DEFAULT_CMDSERVER_PORT)
+    args = parser.parse_args()
+    return args
+
 def cmdproc_main(cmdproc_class, parser=None):
     if parser is None:
         parser = argparse.ArgumentParser(description="A command processor.")
