@@ -86,13 +86,17 @@ class PidginCmdProc(cmdproc.CmdProc):
             logger.info("There is no last sender... ignoring RESPOND and notifying")
             # notify.notify_send("Message not received", "no one to reply to")
             self.notify_server("Message not received", "no one to reply to")
+        elif message[1] is None or message[1] == '':
+            # notify.notify_send("Message not delivered since message was empty")
+            self.notify_server("Message not delivered since message was empty")
+            return
         else:
             send_im(last_conversation, message[1])
 
     def cmd_message(self, args):
         self._init_active_conv_idx()
         cmd, receiver, message = args
-        if message[1] is None:
+        if message[1] is None or message[1] == '':
             # notify.notify_send("Message not delivered since message was empty")
             self.notify_server("Message not delivered since message was empty")
             return
