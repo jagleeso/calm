@@ -387,7 +387,6 @@ class CmdServer(object):
         cmdserver_cmds = None
         if self._is_sending:
             cmdserver_cmds = [
-                    ('WAKEUP', 'CALM'),
                     ('FINISH', 'SENDING'),
                     ('SLEEP',),
                     ('HELP',),
@@ -397,6 +396,8 @@ class CmdServer(object):
             cmdserver_cmds.remove(('FINISH', 'SENDING'))
             # remove redundant commands
             cmdserver_cmds.remove(('TALK', 'TO'))
+            cmdserver_cmds.remove(('SEND', 'TO'))
+            cmdserver_cmds.remove(('WAKEUP', 'CALM'))
             if not self._is_talking:
                 cmdserver_cmds.remove(('FINISH', 'TALKING'))
 
