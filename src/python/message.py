@@ -22,6 +22,8 @@ def is_request(request):
     return type(request) == list and request[0] == 'request'
 def is_response(response):
     return type(response) == list and response[0] == 'response'
+def is_status(status):
+    return type(status) == list and status[0] == 'status' and len(status) == 2
 def is_notification(notification):
     return type(notification) == list and notification[0] == 'notification' and \
             len(notification) == 4 and notification[1] is not None
@@ -45,6 +47,12 @@ def _check_valid_response(response):
     ['response', 'recorded']  
     """
     return is_response(response)
+
+def _check_valid_status(status):
+    """
+    ['status', '... img path']  
+    """
+    return is_status(status)
 
 def _check_valid_candidates(candidates):
     """
@@ -91,6 +99,11 @@ def recv_response(socket):
     assert _check_valid_response(response)
     return response
 
+def recv_status(socket):
+    msg = recv(socket)
+    status = deserialize_msg(msg)
+    assert _check_valid_status(status)
+    return status
 
 def recv_focus(s):
     """
@@ -137,6 +150,11 @@ def recv_cmd_or_request(socket):
 def send_response(socket, response):
     assert _check_valid_response(response)
     msg = serialize_msg(response)
+    return send(socket, msg)
+
+def send_status(socket, status):
+    assert _check_valid_status(status)
+    msg = serialize_msg(status)
     return send(socket, msg)
 
 # either cmdproc or cmdserver stuff

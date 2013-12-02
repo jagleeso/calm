@@ -16,7 +16,10 @@ from cmdproc import window, extract_cmds
 
 import config
 import notify
+
 import context
+from cmdserver import status
+import connect
 
 import logconfig
 logger = logging.getLogger(__name__)
@@ -144,6 +147,7 @@ class CmdServer(object):
         self.startup_cmdprocs()
         self.startup_context()
         # context.start_listening(self.notify_socket)
+        self.startup_status()
         self.notify_server('Calm is ready', 'Say WAKEUP CALM to get started')
 
     def startup_cmdprocs(self):
@@ -171,6 +175,12 @@ class CmdServer(object):
         (s, pid) = fork_context_server(context.__file__.rstrip('c'), self.port)
         self.context_socket = s 
         self.context_server_pid = pid
+
+    def startup_status(self):
+        (s, pid) = connect.fork_listener('status server', status.__file__.rstrip('c'), 
+                config.DEFAULT_HOST, config.DEFAULT_STATUS_PORT)
+        self.status_socket = s 
+        self.status_server_pid = pid
 
     def get_last_focussed_cmdproc(self):
         focus = recv_focus(self.context_socket)
@@ -247,6 +257,73 @@ class CmdServer(object):
         last_receiver = self._macro_cmd_receiver.pop()
         socket = self._program_to_socket[last_receiver]
         send_cmd(socket, [['cmd', 'UNDO']])
+
+    def update_status(self):
+        icon = None
+        cmdproc = self._receiving_cmdproc
+        if cmdproc is None:
+            icon = self.config['icon']
+        else:
+            icon = self._cmdproc_config[cmdproc]['icon']
+        send_status(self.status_socket, ['status', icon])
+
+    def done_sending(self):
+        self._is_sending = False
+        was_sending_to = self._receiving_cmdproc
+        self._receiving_cmdproc = self._prev_receiving_cmdproc 
+        self._prev_receiving_cmdproc = None
+
+        if self._is_talking:
+            # If we were talking before we sent this command, remind the user of the mode switch
+            self.notify_server_for_cmdproc(
+                    self._receiving_cmdproc,
+                    "Talking to {cmdproc} again".format(cmdproc=self._receiving_cmdproc))
+        else:
+            # the user is aborting a send; let them know they're no longer sending
+            self.notify_server_for_cmdproc(was_sending_to, "No longer sending")
+
+        self.update_status()
+
+    def get_ready_to_send(self, cmdproc):
+        self._is_sending = True
+        # The previous receiving command proc should only be None if we are not talking to a command 
+        # proc.
+        assert not self._is_talking or self._prev_receiving_cmdproc is None
+        self._prev_receiving_cmdproc = self._receiving_cmdproc
+        self._receiving_cmdproc = cmdproc
+
+        self.notify_server_for_cmdproc(
+                self._receiving_cmdproc,
+                "Sending to {cmdproc}".format(cmdproc=self._receiving_cmdproc))
+
+        self.update_status()
+
+    def switch_to_sending(self, cmdproc):
+        assert self._is_sending and self._is_sending
+        self._receiving_cmdproc = cmdproc
+
+        self.notify_server_for_cmdproc(
+                self._receiving_cmdproc,
+                "Sending to {cmdproc}".format(cmdproc=self._receiving_cmdproc))
+
+        self.update_status()
+
+    def get_ready_to_talk(self, cmdproc):
+        self._is_talking = True
+        assert self._prev_receiving_cmdproc is None
+        self._receiving_cmdproc = cmdproc
+        self.notify_server_for_cmdproc(
+                self._receiving_cmdproc,
+                "Talking to {cmdproc}".format(cmdproc=self._receiving_cmdproc))
+
+        self.update_status()
+
+    def done_talking(self, cmdproc):
+        self._is_talking = False
+        self.notify_server("Finished talking to {cmdproc}".format(cmdproc=self._receiving_cmdproc))
+        self._receiving_cmdproc = None 
+
+        self.update_status()
 
     def setup_dispatch_loop(self):
         def cmd_string_cb(cmd_string):
@@ -520,55 +597,22 @@ class CmdDFA(object):
 
     def get_ready_to_send(self, cmdproc):
         self._is_sending = True
-        self._cmdserver._is_sending = True
-        # The previous receiving command proc should only be None if we are not talking to a command 
-        # proc.
-        assert not self._talking_to_cmdproc or self._cmdserver._prev_receiving_cmdproc is None
-        self._cmdserver._prev_receiving_cmdproc = self._cmdserver._receiving_cmdproc
-        self._cmdserver._receiving_cmdproc = cmdproc
-
-        self._cmdserver.notify_server_for_cmdproc(
-                self._cmdserver._receiving_cmdproc,
-                "Sending to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.get_ready_to_send(cmdproc)
 
     def switch_to_sending(self, cmdproc):
-        assert self._is_sending and self._cmdserver._is_sending
-        self._cmdserver._receiving_cmdproc = cmdproc
-
-        self._cmdserver.notify_server_for_cmdproc(
-                self._cmdserver._receiving_cmdproc,
-                "Sending to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.switch_to_sending(cmdproc)
 
     def done_sending(self):
         self._is_sending = False
-        self._cmdserver._is_sending = False
-        was_sending_to = self._cmdserver._receiving_cmdproc
-        self._cmdserver._receiving_cmdproc = self._cmdserver._prev_receiving_cmdproc 
-        self._cmdserver._prev_receiving_cmdproc = None
-
-        if self._cmdserver._is_talking:
-            # If we were talking before we sent this command, remind the user of the mode switch
-            self._cmdserver.notify_server_for_cmdproc(
-                    self._cmdserver._receiving_cmdproc,
-                    "Talking to {cmdproc} again".format(cmdproc=self._cmdserver._receiving_cmdproc))
-        else:
-            # the user is aborting a send; let them know they're no longer sending
-            self._cmdserver.notify_server_for_cmdproc(was_sending_to, "No longer sending")
+        self._cmdserver.done_sending()
 
     def get_ready_to_talk(self, cmdproc):
         self._talking_to_cmdproc = True 
-        self._cmdserver._is_talking = True
-        assert self._cmdserver._prev_receiving_cmdproc is None
-        self._cmdserver._receiving_cmdproc = cmdproc
-        self._cmdserver.notify_server_for_cmdproc(
-                self._cmdserver._receiving_cmdproc,
-                "Talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
+        self._cmdserver.get_ready_to_talk(cmdproc)
 
     def done_talking(self, cmdproc):
         self._talking_to_cmdproc = False
-        self._cmdserver._is_talking = False
-        self._cmdserver.notify_server("Finished talking to {cmdproc}".format(cmdproc=self._cmdserver._receiving_cmdproc))
-        self._cmdserver._receiving_cmdproc = None 
+        self._cmdserver.done_talking(cmdproc)
 
     def cmd(self, words, callback, err):
         """
