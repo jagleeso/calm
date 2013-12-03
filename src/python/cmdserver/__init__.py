@@ -716,7 +716,7 @@ class CmdDFA(object):
             err(IncompleteCmdServerCommand(cmd))
             return
 
-        def ask_for_program(cb):
+        def ask_for_program(cb, description):
             # TODO: use voice for this
             def get_ready_to_send_cb(cmdproc):
                 # logger.info("send to... %s", cmdproc)
@@ -726,7 +726,7 @@ class CmdDFA(object):
                     err(BadCmdServerCommand(cmd, cmdproc))
                     return
                 cb(cmdproc)
-            self.ask_for_string('program to send to', get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
+            self.ask_for_string('program to {description} to'.format(**locals()), get_ready_to_send_cb, self._cmdserver._cmdproc_config.keys())
 
         def talk_to_cb(cmdproc):
             if self._talking_to_cmdproc:
@@ -741,7 +741,7 @@ class CmdDFA(object):
             talk_to_cb(cmd[2][1].lower())
             return
         elif is_cmd('TALK'):
-            ask_for_program(talk_to_cb)
+            ask_for_program(talk_to_cb, description='talk')
             return
         elif is_cmd('FINISH', 'TALKING'):
             if self._talking_to_cmdproc:
@@ -768,7 +768,7 @@ class CmdDFA(object):
                 self.cmdproc_cmd(cmdproc, words[i + 1:], send_cmd_cb, err=fallback)
             return
         elif is_cmd('SEND'):
-            ask_for_program(send_cb)
+            ask_for_program(send_cb, description='send')
             return
         elif is_cmd('RECORD'):
             def start_recording_cb(macroname):
